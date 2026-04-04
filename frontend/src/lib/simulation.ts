@@ -2,11 +2,11 @@ import { DispatchZone, Drone, Incident, IncidentType, AuditEntry, AuditAction, G
 
 // Pune dispatch zones
 export const DISPATCH_ZONES: DispatchZone[] = [
-  { id: 'z1', name: 'Shivajinagar', position: { lat: 18.5308, lng: 73.8475 }, riskMultiplier: 1.4, reliability: 0.88, color: '#ffffff' },
-  { id: 'z2', name: 'Kothrud', position: { lat: 18.5074, lng: 73.8077 }, riskMultiplier: 1.1, reliability: 0.92, color: '#ffffff' },
-  { id: 'z3', name: 'Hadapsar', position: { lat: 18.5089, lng: 73.9260 }, riskMultiplier: 1.3, reliability: 0.85, color: '#ffffff' },
-  { id: 'z4', name: 'Viman Nagar', position: { lat: 18.5679, lng: 73.9143 }, riskMultiplier: 1.2, reliability: 0.90, color: '#ffffff' },
-  { id: 'z5', name: 'Swargate', position: { lat: 18.5018, lng: 73.8636 }, riskMultiplier: 1.5, reliability: 0.82, color: '#ffffff' },
+  { id: 'z1', name: 'Bhosari Industrial', position: { lat: 18.6200, lng: 73.8300 }, riskMultiplier: 1.6, reliability: 0.85, color: '#ffffff' },
+  { id: 'z2', name: 'Kharadi HQ', position: { lat: 18.5600, lng: 73.9400 }, riskMultiplier: 1.4, reliability: 0.90, color: '#ffffff' },
+  { id: 'z3', name: 'Hinjewadi IT', position: { lat: 18.5900, lng: 73.7400 }, riskMultiplier: 1.5, reliability: 0.88, color: '#ffffff' },
+  { id: 'z4', name: 'Katraj Bypass', position: { lat: 18.4600, lng: 73.8500 }, riskMultiplier: 1.4, reliability: 0.86, color: '#ffffff' },
+  { id: 'z5', name: 'Paud Valley', position: { lat: 18.4500, lng: 73.7000 }, riskMultiplier: 1.3, reliability: 0.92, color: '#ffffff' },
 ];
 
 const INCIDENT_TYPES: { type: IncidentType; severity: number; label: string }[] = [
@@ -16,9 +16,10 @@ const INCIDENT_TYPES: { type: IncidentType; severity: number; label: string }[] 
   { type: 'unauthorized_entry', severity: 6, label: 'Unauthorized Entry' },
   { type: 'suspicious_vehicle', severity: 5, label: 'Suspicious Vehicle' },
   { type: 'abandoned_object', severity: 7, label: 'Abandoned Object' },
+  { type: 'manual_deployment', severity: 10, label: 'MANUAL DEPLOYMENT' },
 ];
 
-export function getIncidentLabel(type: IncidentType): string {
+export function getIncidentLabel(type: string): string {
   return INCIDENT_TYPES.find(t => t.type === type)?.label ?? type;
 }
 
@@ -65,7 +66,7 @@ export function calculatePriority(incident: Partial<Incident>, zone: DispatchZon
   const hour = new Date().getHours();
   const timeWeight = hour >= 22 || hour <= 5 ? 1.3 : hour >= 17 ? 1.15 : 1.0;
   const recencyBoost = 1.2;
-  const multiCamBonus = Math.random() > 0.6 ? 1.15 : 1.0;
+  const multiCamBonus = incident.multiCamBonus ?? (Math.random() > 0.6 ? 1.15 : 1.0);
   const etaPenalty = nearestEta * 0.05;
 
   const finalScore = (severity * zoneRisk * timeWeight * recencyBoost * multiCamBonus) / (1 + etaPenalty);
@@ -105,6 +106,7 @@ export function spawnIncident(zones: DispatchZone[], drones: Drone[]): { inciden
     cameraSource: `CAM-${zone.name.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 9) + 1}`,
     frameCount: 5 + Math.floor(Math.random() * 10),
     severity: typeInfo.severity,
+    peopleInFrame: Math.floor(Math.random() * 20),
   };
 
   return { incident, zone };

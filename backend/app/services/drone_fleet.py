@@ -14,6 +14,26 @@ class DroneState(Enum):
     RECALLED = "recalled"
     CHARGING = "charging"
 
+# Geofencing: Defined as list of circles (lat, lng, radius_in_latlng)
+NO_FLY_ZONES = [
+    # Area 1: Pune Airport / Military (Viman Nagar North)
+    (18.5850, 73.9200, 0.025),
+    # Area 2: Central Protected Zone (Military Camp area)
+    (18.5250, 73.8850, 0.020),
+    # Area 3: University / Government restricted (Near NW)
+    (18.5550, 73.8250, 0.018),
+    # Area 4: South Perimeter (SE of D4 Katraj)
+    (18.4350, 73.9290, 0.028)
+]
+
+def is_in_nfz(lat, lng):
+    """Simple distance check for circular NFZs."""
+    for zlat, zlng, zrad in NO_FLY_ZONES:
+        dist = math.sqrt((lat - zlat)**2 + (lng - zlng)**2)
+        if dist < zrad:
+            return True
+    return False
+
 class Drone:
     def __init__(self, drone_id, start_lat, start_lng, charging_stations):
         self.id = drone_id
@@ -22,6 +42,7 @@ class Drone:
         self.charging_stations = charging_stations
         self.battery = 100.0
         self.state = DroneState.IDLE
+        self.mission_dist = 0.0
         self.target = None
         self.assigned_incident = None
         self.assigned_incident_obj = None
@@ -29,6 +50,7 @@ class Drone:
         self.assigned_priority = 0.0
 
     def dispatch(self, target_lat, target_lng, incident_obj, priority):
+        self.mission_dist = math.sqrt((target_lat - self.lat)**2 + (target_lng - self.lng)**2)
         self.target = (target_lat, target_lng)
         self.assigned_incident_obj = incident_obj
         self.assigned_incident = incident_obj.get("id") if incident_obj else None
@@ -39,6 +61,7 @@ class Drone:
 
     def recall(self, target_station=None):
         if target_station:
+            self.mission_dist = math.sqrt((target_station[0] - self.lat)**2 + (target_station[1] - self.lng)**2)
             self.target = target_station
         self.state = DroneState.RECALLED
         return_incident = self.assigned_incident_obj
@@ -85,35 +108,69 @@ class Drone:
         dlat = target[0] - self.lat
         dlng = target[1] - self.lng
         dist = math.sqrt(dlat**2 + dlng**2)
-        if dist > DRONE_SPEED_LATLNG:
-            self.lat += (dlat / dist) * DRONE_SPEED_LATLNG
-            self.lng += (dlng / dist) * DRONE_SPEED_LATLNG
-        else:
-            self.lat = target[0]
-            self.lng = target[1]
+        
+        move_dist = DRONE_SPEED_LATLNG
+        if dist < move_dist:
+            self.lat, self.lng = target[0], target[1]
+            return
+
+        # Proposed next step
+        next_lat = self.lat + (dlat / dist) * move_dist
+        next_lng = self.lng + (dlng / dist) * move_dist
+
+        # Collision avoidance: simple tangential slip logic
+        if is_in_nfz(next_lat, next_lng):
+            # Try sliding: Rotate vector 45/-45 deg to find exit
+            for angle in [45, -45, 90, -90, 135, -135]:
+                rad = math.radians(angle)
+                rot_lat = (dlat * math.cos(rad) - dlng * math.sin(rad))
+                rot_lng = (dlat * math.sin(rad) + dlng * math.cos(rad))
+                mag = math.sqrt(rot_lat**2 + rot_lng**2)
+                
+                try_lat = self.lat + (rot_lat / mag) * move_dist
+                try_lng = self.lng + (rot_lng / mag) * move_dist
+                
+                if not is_in_nfz(try_lat, try_lng):
+                    self.lat, self.lng = try_lat, try_lng
+                    return
+            # If completely stuck, stop moving
+            return
+
+        self.lat, self.lng = next_lat, next_lng
 
     def _arrived(self):
         if not self.target: return False
         return math.isclose(self.lat, self.target[0], abs_tol=1e-5) and math.isclose(self.lng, self.target[1], abs_tol=1e-5)
 
     def to_json(self):
+        rem_dist = math.sqrt((self.target[0] - self.lat)**2 + (self.target[1] - self.lng)**2) if self.target else 0.0
+        # Initialize mission_dist if it was somehow missed or at 0
+        if not hasattr(self, 'mission_dist') or self.mission_dist <= 0:
+            self.mission_dist = rem_dist if rem_dist > 0 else 1e-9
+
+        eta = rem_dist / DRONE_SPEED_LATLNG if self.target else 0.0
+        progress = 100.0 * (1.0 - (rem_dist / self.mission_dist)) if self.mission_dist > 0 else 0.0
+            
         return {
             "drone_id": self.id,
-            "state": self.state.value,
+            "state": self.state.value if hasattr(self.state, 'value') else str(self.state),
             "lat": round(self.lat, 6),
             "lng": round(self.lng, 6),
             "battery": round(self.battery, 1),
             "assigned_incident": self.assigned_incident,
+            "eta_seconds": int(eta) if self.state in (DroneState.EN_ROUTE, DroneState.RECALLED) else 0,
+            "path_progress": round(min(100.0, max(0.0, progress)), 1),
+            "charging_progress": round(self.battery, 1) if self.state == DroneState.CHARGING else 0
         }
 
 class DroneFleet:
     def __init__(self):
         self.stations = [
-            (18.5300, 73.8500), 
-            (18.5500, 73.9300), 
-            (18.5900, 73.7300), 
-            (18.4500, 73.8600), 
-            (18.5600, 73.9100)  
+            (18.6200, 73.8300), # Bhosari Industrial
+            (18.5600, 73.9400), # Kharadi HQ
+            (18.5900, 73.7400), # Hinjewadi IT
+            (18.4600, 73.8500), # Katraj Bypass
+            (18.4500, 73.7000)  # Paud Valley (D5 Down Left)
         ]
         
         self.drones = {}
@@ -126,7 +183,7 @@ class DroneFleet:
                 drone_number += 1
                 
         self.pending_queue = [] 
-
+        self.active_mission_ids = set() # Track current incident IDs assigned to drones
     def enqueue_incident(self, incident: dict):
         # Prevent queueing the same incident twice
         if not any(i.get("id") == incident.get("id") for i in self.pending_queue):
@@ -179,17 +236,57 @@ class DroneFleet:
 
     async def run(self, broadcast_fn, audit_fn=None):
         print("🚀 Drone Fleet Background Task Started")
+        last_db_sync = 0
+        last_heartbeat = 0
         while True:
             try:
+                loop_time = asyncio.get_event_loop().time()
+                
+                # ── Heartbeat Log (Every 10s) ─────────
+                if loop_time - last_heartbeat > 10.0:
+                    active = len(self.active_mission_ids)
+                    pending = len(self.pending_queue)
+                    print(f"📡 FLEET PULSE: {active} Missions Active | {pending} Pending | All Drones Online")
+                    last_heartbeat = loop_time
+
+                # ── Sync with DB periodically (supports manual seeds/ML scripts) 
+                if loop_time - last_db_sync > 5.0:
+                    from app.db.mongo import get_db
+                    db = await get_db()
+                    if db is not None:
+                        # Find potential incidents not currently in memory or processed
+                        cursor = db.incidents.find({
+                            "status": {"$in": ["queued", "pending", "auto"]},
+                            "assigned_drone": None
+                        })
+                        async for doc in cursor:
+                            inc_id = doc.get("id")
+                            in_queue = any(q.get("id") == inc_id for q in self.pending_queue)
+                            is_active = inc_id in self.active_mission_ids
+                            
+                            if inc_id and not in_queue and not is_active:
+                                doc.pop("_id", None)
+                                self.pending_queue.append(doc)
+                    last_db_sync = loop_time
+
                 for drone in self.drones.values():
-                    # Smart return for idle drones stuck out in the wild
+                    # Tactical standby: Keep drones in the field if incidents are pending.
+                    # Only return if battery is critical (< 25%) or if the entire queue is empty.
+                    low_battery = drone.battery < 25.0
+                    no_pending_tasks = len(self.pending_queue) == 0
+                    
                     if drone.state == DroneState.IDLE and drone.assigned_incident is None and not self._is_at_station(drone):
-                        self.trigger_recall(drone)
+                        if low_battery or no_pending_tasks:
+                            self.trigger_recall(drone)
                         
                     events = drone.tick()
-                    if audit_fn and events:
-                        for event_name, incident_id in events:
-                            asyncio.create_task(audit_fn(event_name, incident_id, drone.id))
+                    if events:
+                        for event_name, inc_id in events:
+                            if event_name == "DRONE_TASK_COMPLETE":
+                                if inc_id in self.active_mission_ids:
+                                    self.active_mission_ids.remove(inc_id)
+                            if audit_fn:
+                                asyncio.create_task(audit_fn(event_name, inc_id, drone.id))
                 
                 self.process_queue(audit_fn)
                 
@@ -228,7 +325,9 @@ class DroneFleet:
                     self.pending_queue.append(old_inc)
                 
                 inc_id = incident.get('id', 'N/A')
+                print(f"🚀 MISSION START: Drone {target_drone.id} PREEMPTED to {inc_id}")
                 target_drone.dispatch(incident['lat'], incident['lng'], incident, inc_priority)
+                self.active_mission_ids.add(inc_id) # Lock the mission
                 self.pending_queue.remove(incident)
                 self.sort_pending_queue()
                 
@@ -239,6 +338,17 @@ class DroneFleet:
                 
                 if audit_fn:
                     asyncio.create_task(audit_fn("PREEMPTIVE_DISPATCH", inc_id, target_drone.id))
+                
+                # Sync status to DB
+                async def sync_db():
+                    from app.db.mongo import get_db
+                    db = await get_db()
+                    if db is not None:
+                        await db.incidents.update_one(
+                            {"id": inc_id}, 
+                            {"$set": {"status": "en_route", "assigned_drone": target_drone.id, "eta_seconds": int(eta)}}
+                        )
+                asyncio.create_task(sync_db())
                 assigned = True
             
             # If no preemption, try traditional best drone
@@ -246,7 +356,9 @@ class DroneFleet:
                 best_drone = self.best_drone_for(incident['lat'], incident['lng'])
                 if best_drone:
                     inc_id = incident.get('id', 'N/A')
+                    print(f"🚀 MISSION START: Drone {best_drone.id} dispatched to {inc_id}")
                     best_drone.dispatch(incident['lat'], incident['lng'], incident, inc_priority)
+                    self.active_mission_ids.add(inc_id) # Lock the mission
                     self.pending_queue.remove(incident)
                     
                     dist = math.sqrt((best_drone.lat - incident['lat'])**2 + (best_drone.lng - incident['lng'])**2)
@@ -255,4 +367,15 @@ class DroneFleet:
                     
                     if audit_fn:
                         asyncio.create_task(audit_fn("AUTO_DISPATCH", inc_id, best_drone.id))
+
+                    # Sync status to DB
+                    async def sync_db_regular():
+                        from app.db.mongo import get_db
+                        db = await get_db()
+                        if db is not None:
+                            await db.incidents.update_one(
+                                {"id": inc_id}, 
+                                {"$set": {"status": "en_route", "assigned_drone": best_drone.id, "eta_seconds": int(eta)}}
+                            )
+                    asyncio.create_task(sync_db_regular())
                     assigned = True

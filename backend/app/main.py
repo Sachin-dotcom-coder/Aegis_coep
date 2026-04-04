@@ -24,6 +24,11 @@ async def log_audit_action(action: str, incident_id: str, drone_id: str = "N/A")
     if db is not None:
         if action == "DRONE_ON_SCENE":
             await db.incidents.update_one({"id": incident_id}, {"$set": {"status": "in_progress"}})
+        
+        if action == "DRONE_TASK_COMPLETE":
+            # Auto-Archive: Delete from active incidents once task is finished
+            await db.incidents.delete_one({"id": incident_id})
+            print(f"🧹 ARCHIVED: Incident {incident_id} removed from active registry.")
             
         await db.audit.insert_one({
             "timestamp": datetime.datetime.utcnow(),

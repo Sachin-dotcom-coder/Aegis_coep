@@ -11,6 +11,22 @@ const PUNE_CENTER: [number, number] = [18.5204, 73.8567];
 const PUNE_BOUNDS: L.LatLngBoundsExpression = [[18.42, 73.72], [18.62, 73.98]];
 const PUNE_MAX_BOUNDS: L.LatLngBoundsExpression = [[18.38, 73.66], [18.66, 74.04]];
 
+// 25 scattered CCTV locations covering the absolute maximum tactical bounds
+const CCTV_LOCATIONS: [number, number][] = [
+  [18.3800, 73.6600], [18.6600, 74.0400], [18.3800, 74.0400], [18.6600, 73.6600], [18.5200, 73.8500],
+  [18.4200, 73.7200], [18.6000, 73.9800], [18.4500, 73.8000], [18.6300, 73.9200], [18.4800, 73.7500],
+  [18.5800, 74.0200], [18.4000, 73.9500], [18.6500, 73.7000], [18.5000, 74.0400], [18.3800, 73.8800],
+  [18.6600, 73.8200], [18.4400, 73.6800], [18.6200, 74.0000], [18.5500, 73.6600], [18.4800, 74.0400],
+  [18.6400, 73.7800], [18.4000, 74.0400], [18.6600, 73.9500], [18.3800, 74.0000], [18.6600, 73.7300]
+];
+
+const NO_FLY_ZONES: { center: [number, number]; radius: number }[] = [
+  { center: [18.5850, 73.9200], radius: 3000 }, // Airport
+  { center: [18.5250, 73.8850], radius: 2200 }, // Camp
+  { center: [18.5550, 73.8250], radius: 2000 }, // Government
+  { center: [18.4350, 73.9290], radius: 2800 }  // South-East (of D4 Katraj)
+];
+
 interface Props {
   drones: Drone[];
   incidents: Incident[];
@@ -23,11 +39,39 @@ interface Props {
   setVideoMaximized: (val: boolean) => void;
 }
 
-export function CityMap({ 
-  drones, 
-  incidents, 
-  onIncidentClick, 
-  onManualDispatch, 
+const CCTV_NODES = [
+  { id: 'CAM-01', pos: [18.5308, 73.8475], label: 'Shivajinagar Sq' },
+  { id: 'CAM-02', pos: [18.5074, 73.8077], label: 'Kothrud Depo' },
+  { id: 'CAM-03', pos: [18.5089, 73.9260], label: 'Hadapsar Flyover' },
+  { id: 'CAM-04', pos: [18.5679, 73.9143], label: 'Viman Nagar' },
+  { id: 'CAM-05', pos: [18.5018, 73.8636], label: 'Swargate Hub' },
+  { id: 'CAM-06', pos: [18.6298, 73.7997], label: 'Pimpri Junction' },
+  { id: 'CAM-07', pos: [18.5913, 73.7401], label: 'Hinjewadi Ph1' },
+  { id: 'CAM-08', pos: [18.4575, 73.8677], label: 'Katraj Snake Park' },
+  { id: 'CAM-09', pos: [18.5204, 73.8567], label: 'Pune Station' },
+  { id: 'CAM-10', pos: [18.5513, 73.8224], label: 'Aundh IT Park' },
+  { id: 'CAM-11', pos: [18.5134, 73.8834], label: 'Camp MG Road' },
+  { id: 'CAM-12', pos: [18.4967, 73.8412], label: 'Parvati Hill' },
+  { id: 'CAM-13', pos: [18.5413, 73.8112], label: 'Pashan Lake' },
+  { id: 'CAM-14', pos: [18.5804, 73.9214], label: 'Kharadi IT Rd' },
+  { id: 'CAM-15', pos: [18.4688, 73.8322], label: 'Dhayari Phata' },
+  { id: 'CAM-16', pos: [18.6112, 73.8122], label: 'Chinchwad Stn' },
+  { id: 'CAM-17', pos: [18.5244, 73.8212], label: 'Loyola Rd' },
+  { id: 'CAM-18', pos: [18.5022, 73.8522], label: 'Sarasbaug' },
+  { id: 'CAM-19', pos: [18.5555, 73.9333], label: 'Magarpatta' },
+  { id: 'CAM-20', pos: [18.4833, 73.8944], label: 'Kondhwa Main' },
+  { id: 'CAM-21', pos: [18.4299, 73.8722], label: 'Saswad Bypass' },
+  { id: 'CAM-22', pos: [18.6444, 73.7633], label: 'Nigadi' },
+  { id: 'CAM-23', pos: [18.5722, 73.8011], label: 'Baner Balewadi' },
+  { id: 'CAM-24', pos: [18.5322, 73.8944], label: 'Yerwada' },
+  { id: 'CAM-25', pos: [18.5188, 73.9455], label: 'Manjari' },
+];
+
+export function CityMap({
+  drones,
+  incidents,
+  onIncidentClick,
+  onManualDispatch,
   onAbort,
   activeLiveFeed,
   setActiveLiveFeed,
@@ -96,15 +140,7 @@ export function CityMap({
       dispatchMarkersRef.current = dispatchGroup;
 
       DISPATCH_ZONES.forEach((zone, idx) => {
-        L.circle([zone.position.lat, zone.position.lng], {
-          radius: 600 * zone.riskMultiplier,
-          color: '#ffffff',
-          fillColor: '#ffffff',
-          fillOpacity: 0.05,
-          weight: 1,
-          dashArray: '6 4',
-          opacity: 0.3,
-        }).addTo(dispatchGroup);
+        // Removed coverage circles for a cleaner map view
 
         const baseIcon = L.divIcon({
           className: '',
@@ -128,6 +164,31 @@ export function CityMap({
           direction: 'top',
           className: 'custom-tooltip'
         });
+      });
+
+      // Initialize CCTV Markers
+      const cctvIcon = L.icon({
+        iconUrl: '/cctv.jpg',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        className: 'cctv-icon'
+      });
+
+      CCTV_LOCATIONS.forEach((loc, idx) => {
+        L.marker(loc, { icon: cctvIcon, opacity: 0.6 }).addTo(dispatchGroup).bindTooltip(`CCTV-${idx + 1} ONLINE`, { direction: 'top', className: 'custom-tooltip' });
+      });
+
+      // Initialize No-Fly Zones (Circular)
+      NO_FLY_ZONES.forEach((zone) => {
+        L.circle(zone.center, {
+          radius: zone.radius,
+          color: '#ff4444',
+          fillColor: '#ff4444',
+          fillOpacity: 0.15,
+          weight: 2,
+          dashArray: '5, 10',
+          className: 'nfz-polygon'
+        }).addTo(dispatchGroup).bindTooltip("NO-FLY ZONE: RESTRICTED AIRSPACE", { sticky: true, className: 'custom-tooltip' });
       });
 
       mapRef.current = map;
@@ -155,28 +216,94 @@ export function CityMap({
     existing.forEach((m, id) => { if (!currentIds.has(id)) { m.remove(); existing.delete(id); } });
 
     drones.forEach((drone) => {
-      const isActive = drone.status === 'en_route' || drone.status === 'on_site';
+      // Glow/Highlight is ONLY for mission-active drones
+      const isOnMission = drone.status === 'en_route' || drone.status === 'on_site';
+      const isMoving = drone.status === 'en_route' || drone.status === 'recalled';
+      const isOnSite = drone.status === 'on_site';
+      const isRecalled = drone.status === 'recalled';
+
+      const incident = incidents.find(i => i.id === drone.targetIncidentId);
+
+      // Calculate rotation toward target if moving (incident for en_route, base for recalled)
+      let rotation = 0;
+      if (isMoving) {
+        const targetPos = isRecalled ? drone.basePosition : incident?.position;
+        if (targetPos) {
+          rotation = Math.atan2(
+            targetPos.lat - drone.position.lat,
+            targetPos.lng - drone.position.lng
+          ) * (180 / Math.PI);
+        }
+      }
+
       const droneIcon = L.divIcon({
         className: '',
-        html: `<div style="position:relative; width:${isActive ? 32 : 24}px; height:${isActive ? 32 : 24}px;">
-          <img src="/drone_icon.png" style="width:100%; height:100%; filter: brightness(${isActive ? 1 : 0.6}) drop-shadow(0 0 5px ${isActive ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'}); transition: all 0.3s ease;" />
-          ${isActive ? '<div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; border:2px solid #fff; box-shadow:0 0 15px #fff; animation: pulse 2s infinite; opacity: 0.2;"></div>' : ''}
+        html: `<div style="position:relative; width:36px; height:36px; transform: rotate(${rotation}deg); transition: transform 0.5s ease;">
+          <img src="/drone_icon.png" style="width:100%; height:100%; filter: brightness(${isOnMission ? 1.2 : 0.4}) drop-shadow(0 0 8px ${isOnSite ? 'rgba(255,80,80,1)' : isOnMission ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,0)'});" />
+          ${isOnMission ? `<div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; border:2px solid ${isOnSite ? '#ff4444' : '#fff'}; box-shadow:0 0 15px ${isOnSite ? '#ff4444' : '#fff'}; animation: pulse 1.5s infinite; opacity: 0.2;"></div>` : ''}
+          <div style="position:absolute;bottom:-24px;left:50%;transform:translateX(-50%) rotate(${-rotation}deg);white-space:nowrap;background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:900;font-family:'IBM Plex Mono',monospace;color:#fff">${drone.id}</div>
         </div>`,
-        iconSize: [isActive ? 32 : 24, isActive ? 32 : 24],
-        iconAnchor: [isActive ? 16 : 12, isActive ? 16 : 12],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       });
+
+      const popupContent = `
+        <div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:12px;background:#000;color:#fff;min-width:180px;border-radius:12px;border:1px solid rgba(255,255,255,0.1)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px">
+            <b style="color:#00ffff;letter-spacing:1px">${drone.id}</b>
+            <span style="font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.1);border-radius:4px">${drone.status.toUpperCase()}</span>
+          </div>
+          ${isMoving ? `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+                <span>MISSION PROGRESS</span>
+                <span>${drone.path_progress || 0}%</span>
+              </div>
+              <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+                <div style="width:${drone.path_progress || 0}%;height:100%;background:#00ffff;box-shadow:0 0 10px #00ffff"></div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:6px">
+                <span style="color:rgba(255,255,255,0.4)">ETA:</span>
+                <span style="color:#fff;font-weight:700">${Math.floor((drone.eta_seconds || 0) / 60)}m ${(drone.eta_seconds || 0) % 60}s</span>
+              </div>
+            </div>
+          ` : ''}
+          ${drone.status === 'charging' ? `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+                <span>CHARGING PROGRESS</span>
+                <span>${drone.charging_progress || 0}%</span>
+              </div>
+              <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+                <div style="width:${drone.charging_progress || 0}%;height:100%;background:#00ff00;box-shadow:0 0 10px #00ff00"></div>
+              </div>
+            </div>
+          ` : ''}
+          <div style="margin-bottom:0">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+              <span>BATTERY</span>
+              <span>${drone.battery.toFixed(0)}%</span>
+            </div>
+            <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+              <div style="width:${drone.battery}%;height:100%;background:${drone.battery < 20 ? '#ff4444' : drone.battery < 50 ? '#ffbb00' : '#00ff00'};box-shadow:0 0 10px ${drone.battery < 20 ? '#ff4444' : drone.battery < 50 ? '#ffbb00' : '#00ff00'}"></div>
+            </div>
+          </div>
+        </div>
+      `;
 
       if (existing.has(drone.id)) {
         const marker = existing.get(drone.id)!;
         marker.setLatLng([drone.position.lat, drone.position.lng]);
         marker.setIcon(droneIcon);
+        marker.setPopupContent(popupContent);
       } else {
         const marker = L.marker([drone.position.lat, drone.position.lng], { icon: droneIcon, zIndexOffset: 900 }).addTo(map);
-        marker.bindPopup(`<div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:4px;background:#000;color:#fff"><b>${drone.id.replace('drone_', 'D-')}</b><br/>Status: ${drone.status}<br/>Battery: ${drone.battery.toFixed(0)}%</div>`);
+        marker.bindPopup(popupContent, { className: 'custom-popup', offset: [0, -10] });
+        marker.bindTooltip(isMoving ? `ETA: ${Math.floor((drone.eta_seconds || 0) / 60)}m ${(drone.eta_seconds || 0) % 60}s` : drone.id, { direction: 'top', className: 'custom-tooltip' });
         existing.set(drone.id, marker);
       }
     });
-  }, [drones]);
+  }, [drones, incidents]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -212,14 +339,31 @@ export function CityMap({
     existing.forEach((line) => line.remove());
     existing.clear();
 
-    drones.filter((d) => d.status === 'en_route' && d.targetIncidentId).forEach((drone) => {
-      const incident = incidents.find((i) => i.id === drone.targetIncidentId);
-      if (!incident) return;
-      const line = L.polyline([[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]], {
-        color: '#fff', weight: 2, dashArray: '8 6', opacity: 0.6,
-      }).addTo(map);
-      existing.set(drone.id, line);
-    });
+    drones
+      .filter((d) => d.status === 'en_route' && d.targetIncidentId)
+      .forEach((drone) => {
+        const incident = incidents.find((i) => i.id === drone.targetIncidentId);
+        if (!incident) return;
+
+        // Trace of the target path (faded static line)
+        L.polyline(
+          [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
+          { color: '#ffffff', weight: 1, opacity: 0.1 }
+        ).addTo(map);
+
+        // Animated FLOWING line to the target
+        const line = L.polyline(
+          [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
+          {
+            color: '#ffffff',
+            weight: 2,
+            dashArray: '12 12',
+            className: 'flowing-route', // Dynamic CSS animation
+            opacity: 0.7
+          }
+        ).addTo(map);
+        existing.set(drone.id, line);
+      });
   }, [drones, incidents]);
 
   const mapContent = (
@@ -255,7 +399,7 @@ export function CityMap({
               <span className="text-sm font-black tracking-widest text-white uppercase italic font-mono leading-none">Objective Reached</span>
               <span className="text-[10px] font-mono tracking-[0.3em] text-red-500 uppercase mt-1 font-bold">Unit {onSiteDrones[0].id.replace('drone_', 'D-')}</span>
             </div>
-            <button 
+            <button
               onClick={() => setActiveLiveFeed(onSiteDrones[0].id)}
               className="px-6 py-2 bg-red-600 hover:bg-white text-white hover:text-black transition-all duration-300 rounded-xl shadow-xl flex items-center gap-3 active:scale-95"
             >
@@ -309,7 +453,7 @@ export function CityMap({
             {/* Close / Controls */}
             <div className="absolute top-8 right-8 z-30 flex items-center gap-4">
               {/* Tactical Reset */}
-              <button 
+              <button
                 onClick={() => {
                   setVideoZoom(1.5);
                   setVideoOffset({ x: 0, y: 0 });
@@ -320,7 +464,7 @@ export function CityMap({
                 <span className="text-xs font-black tracking-widest uppercase text-white group-hover:text-black">Reset Gimbal</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => {
                   if (activeLiveFeed) {
                     onAbort(activeLiveFeed);
@@ -336,13 +480,13 @@ export function CityMap({
                 <span className="text-xs font-black tracking-widest uppercase text-red-500 group-hover:text-white">Abort Mission</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setVideoMaximized(!videoMaximized)}
                 className="p-3 bg-white/10 hover:bg-white hover:text-black rounded-2xl border border-white/10 backdrop-blur-xl transition-all shadow-2xl"
               >
                 {videoMaximized ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
               </button>
-              <button 
+              <button
                 onClick={() => {
                   setActiveLiveFeed(null);
                   setVideoMaximized(false);
@@ -357,46 +501,46 @@ export function CityMap({
 
             {/* Gimbal Controls HUD cluster - Bottom Right */}
             <div className="absolute bottom-8 right-8 z-30 flex items-center gap-6 bg-black/60 backdrop-blur-2xl px-6 py-4 rounded-3xl border border-white/10 shadow-2xl animate-in fade-in slide-in-from-right-10 duration-700">
-               {/* 4-way Pan */}
-               <div className="grid grid-cols-3 gap-1">
-                  <div />
-                  <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigUp size={16} /></button>
-                  <div />
-                  <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigLeft size={16} /></button>
-                  <div className="bg-white/10 rounded-sm" />
-                  <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigRight size={16} /></button>
-                  <div />
-                  <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigDown size={16} /></button>
-                  <div />
-               </div>
+              {/* 4-way Pan */}
+              <div className="grid grid-cols-3 gap-1">
+                <div />
+                <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigUp size={16} /></button>
+                <div />
+                <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigLeft size={16} /></button>
+                <div className="bg-white/10 rounded-sm" />
+                <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigRight size={16} /></button>
+                <div />
+                <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigDown size={16} /></button>
+                <div />
+              </div>
 
-               <div className="h-12 w-[1px] bg-white/10" />
+              <div className="h-12 w-[1px] bg-white/10" />
 
-               {/* Zoom Control */}
-               <div className="flex flex-col gap-2">
-                  <button onClick={() => setVideoZoom(p => Math.min(4, p + 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Plus size={16} /></button>
-                  <div className="flex flex-col items-center">
-                    <span className="text-[8px] font-black text-white/30 tracking-widest uppercase">Zoom</span>
-                    <span className="text-sm font-black text-white font-mono">{videoZoom.toFixed(1)}x</span>
-                  </div>
-                  <button onClick={() => setVideoZoom(p => Math.max(1, p - 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Minus size={16} /></button>
-               </div>
+              {/* Zoom Control */}
+              <div className="flex flex-col gap-2">
+                <button onClick={() => setVideoZoom(p => Math.min(4, p + 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Plus size={16} /></button>
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] font-black text-white/30 tracking-widest uppercase">Zoom</span>
+                  <span className="text-sm font-black text-white font-mono">{videoZoom.toFixed(1)}x</span>
+                </div>
+                <button onClick={() => setVideoZoom(p => Math.max(1, p - 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Minus size={16} /></button>
+              </div>
             </div>
 
             <div className="w-full h-full overflow-hidden">
-               <video
-                 autoPlay
-                 loop
-                 muted
-                 playsInline
-                 src="/video.mp4"
-                 style={{ 
-                   transformOrigin: 'center',
-                   transform: `scale(${videoZoom}) translate(${videoOffset.x}px, ${videoOffset.y}px)`,
-                   transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
-                 }}
-                 className="w-full h-full object-cover opacity-80"
-               />
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                src="/video.mp4"
+                style={{
+                  transformOrigin: 'center',
+                  transform: `scale(${videoZoom}) translate(${videoOffset.x}px, ${videoOffset.y}px)`,
+                  transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                }}
+                className="w-full h-full object-cover opacity-80"
+              />
             </div>
           </div>
         </div>
@@ -479,10 +623,33 @@ export function CityMap({
           border-radius: 8px !important;
           box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
         }
+        .flowing-route {
+          stroke-dasharray: 12, 12;
+          animation: flow 1s linear infinite;
+          filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
+        }
+        @keyframes flow {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
+        }
         @keyframes pulse {
           0% { transform: scale(1); opacity: 0.5; }
           50% { transform: scale(1.6); opacity: 0; }
           100% { transform: scale(1); opacity: 0.5; }
+        }
+        .cctv-icon {
+          border-radius: 50% !important;
+          border: 1px solid rgba(255,255,255,0.4) !important;
+          box-shadow: 0 0 10px rgba(0,255,255,0.2) !important;
+          filter: grayscale(1) invert(1) brightness(0.8) !important;
+        }
+        .nfz-polygon {
+          animation: nfz-pulse 3s infinite ease-in-out;
+        }
+        @keyframes nfz-pulse {
+          0% { fill-opacity: 0.1; }
+          50% { fill-opacity: 0.25; }
+          100% { fill-opacity: 0.1; }
         }
       `}} />
     </div>

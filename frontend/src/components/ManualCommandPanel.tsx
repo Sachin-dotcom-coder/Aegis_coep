@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Target, X, Scan, Loader2 } from 'lucide-react';
+import { Search, Target, X, Scan } from 'lucide-react';
 
 interface Props {
   onManualDispatch: (lat: number, lng: number) => void;
@@ -37,12 +37,12 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
 
   return (
     <div className="mb-2 w-full">
-      <button 
+      <button
         onClick={() => setShowConsole(!showConsole)}
         className="w-full flex items-center justify-between bg-black/60 hover:bg-white hover:text-black backdrop-blur-xl border border-white/10 px-6 py-4 rounded-2xl shadow-xl transition-all group active:scale-[0.98]"
       >
         <div className="flex items-center gap-4">
-          <Target size={20} className="group-hover:animate-spin" />
+          <Target size={20} className={showConsole ? '' : 'group-hover:animate-spin'} />
           <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Manual Dispatch</span>
         </div>
         <div className={`w-2 h-2 rounded-full ${showConsole ? 'bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]' : 'bg-white/20'}`} />
@@ -57,9 +57,9 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
 
           <div className="relative">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${searching ? 'text-white animate-spin' : 'text-white/40'}`} size={16} />
-            <input 
-              type="text" 
-              placeholder="Location: Kothrud, Pune..." 
+            <input
+              type="text"
+              placeholder="Location: Kothrud, Pune..."
               value={manualAddress}
               onChange={(e) => {
                 setManualAddress(e.target.value);
@@ -67,7 +67,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
               }}
               className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-6 text-white font-mono text-xs focus:border-white/30 transition-all outline-none"
             />
-            
+
             {suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-black/95 border border-white/20 rounded-xl overflow-hidden shadow-2xl z-[1002]">
                 {suggestions.map((s, i) => (
@@ -87,7 +87,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
             )}
           </div>
 
-          <button 
+          <button
             onClick={() => {
               const finalCoords = selectedCoords || { lat: PUNE_CENTER[0], lng: PUNE_CENTER[1] };
               onManualDispatch(finalCoords.lat, finalCoords.lng);
