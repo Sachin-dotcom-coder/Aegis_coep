@@ -5,6 +5,7 @@ from app.services.priority import calculate_priority
 from app.services.confidence_gate import gate
 from app.services.zone_manager import dedup_or_merge
 import datetime
+import uuid
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -80,14 +81,21 @@ async def approve_incident(incident_id: str):
 
 @router.post("/{incident_id}/reject")
 async def reject_incident(incident_id: str):
-    """Operator explicitly rejects a false positive incident, archiving it."""
+    """Operator explicitly rejects a false positive incident or aborts a manual deployment."""
     db = await get_db()
+    
+    # If a drone is actively flying to it, recall the drone
+    from app.main import fleet
+    for drone in fleet.drones.values():
+        if drone.assigned_incident == incident_id:
+            drone.recall()
+            
     await db.incidents.delete_one({"id": incident_id})
     await db.audit.insert_one({
         "timestamp": datetime.datetime.utcnow(),
         "action": "HUMAN_OPERATOR_REJECT",
         "incident_id": incident_id,
-        "reason": "Operator manually confirmed false positive."
+        "reason": "Operator manually confirmed false positive or aborted manual deployment."
     })
     return {"status": "rejected"}
 

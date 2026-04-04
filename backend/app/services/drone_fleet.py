@@ -42,6 +42,7 @@ class Drone:
         self.charging_stations = charging_stations
         self.battery = 100.0
         self.state = DroneState.IDLE
+        self.mission_dist = 0.0
         self.target = None
         self.assigned_incident = None
         self.assigned_incident_obj = None
@@ -49,6 +50,7 @@ class Drone:
         self.assigned_priority = 0.0
 
     def dispatch(self, target_lat, target_lng, incident_obj, priority):
+        self.mission_dist = math.sqrt((target_lat - self.lat)**2 + (target_lng - self.lng)**2)
         self.target = (target_lat, target_lng)
         self.assigned_incident_obj = incident_obj
         self.assigned_incident = incident_obj.get("id") if incident_obj else None
@@ -59,6 +61,7 @@ class Drone:
 
     def recall(self, target_station=None):
         if target_station:
+            self.mission_dist = math.sqrt((target_station[0] - self.lat)**2 + (target_station[1] - self.lng)**2)
             self.target = target_station
         self.state = DroneState.RECALLED
         return_incident = self.assigned_incident_obj
@@ -140,13 +143,24 @@ class Drone:
         return math.isclose(self.lat, self.target[0], abs_tol=1e-5) and math.isclose(self.lng, self.target[1], abs_tol=1e-5)
 
     def to_json(self):
+        rem_dist = math.sqrt((self.target[0] - self.lat)**2 + (self.target[1] - self.lng)**2) if self.target else 0.0
+        # Initialize mission_dist if it was somehow missed or at 0
+        if not hasattr(self, 'mission_dist') or self.mission_dist <= 0:
+            self.mission_dist = rem_dist if rem_dist > 0 else 1e-9
+
+        eta = rem_dist / DRONE_SPEED_LATLNG if self.target else 0.0
+        progress = 100.0 * (1.0 - (rem_dist / self.mission_dist)) if self.mission_dist > 0 else 0.0
+            
         return {
             "drone_id": self.id,
-            "state": self.state.value,
+            "state": self.state.value if hasattr(self.state, 'value') else str(self.state),
             "lat": round(self.lat, 6),
             "lng": round(self.lng, 6),
             "battery": round(self.battery, 1),
             "assigned_incident": self.assigned_incident,
+            "eta_seconds": int(eta) if self.state in (DroneState.EN_ROUTE, DroneState.RECALLED) else 0,
+            "path_progress": round(min(100.0, max(0.0, progress)), 1),
+            "charging_progress": round(self.battery, 1) if self.state == DroneState.CHARGING else 0
         }
 
 class DroneFleet:

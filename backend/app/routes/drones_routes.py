@@ -10,6 +10,15 @@ async def list_drones():
     from app.main import fleet
     return [d.to_json() for d in fleet.drones.values()]
 
+@router.get("/stations")
+async def list_stations():
+    """Return the fixed coordinates of dispatch units."""
+    from app.main import fleet
+    return [
+        {"id": f"STN-0{i+1}", "lat": s[0], "lng": s[1]}
+        for i, s in enumerate(fleet.stations)
+    ]
+
 class DeployPayload(BaseModel):
     lat: float
     lng: float
@@ -47,21 +56,46 @@ async def recall_drone(drone_id: str):
 async def deploy_drone(drone_id: str, payload: DeployPayload):
     from app.main import fleet
     from app.db.mongo import get_db
+    import uuid
     
     if drone_id not in fleet.drones:
         return {"error": "Drone not found"}
         
     drone = fleet.drones[drone_id]
+    
+    # Create a manual incident
+    manual_inc_id = f"MANUAL-{uuid.uuid4().hex[:6].upper()}"
+    incident_obj = {
+        "id": manual_inc_id,
+        "type": "manual_deployment",
+        "lat": payload.lat,
+        "lng": payload.lng,
+        "status": "dispatched",
+        "priority_score": 999.0,
+        "detect_confidence": 1.0,
+        "zone_accident_frequency": 1.0,
+        "severity": 10,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "assigned_drone": drone_id,
+        "camera_id": "MANUAL-OP",
+        "people_in_frame": 0,
+        "zone_id": "MANUAL",
+        "decision_confidence": 1.0,
+        "priority_score": 999.0
+    }
+    
     # Dispatch manually with highest possible priority so it doesn't get preempted easily
-    drone.dispatch(payload.lat, payload.lng, None, 999.0) 
+    drone.dispatch(payload.lat, payload.lng, incident_obj, 999.0) 
     
     db = await get_db()
     if db is not None:
+        await db.incidents.insert_one(incident_obj)
         await db.audit.insert_one({
             "timestamp": datetime.datetime.utcnow(),
             "action": "ADMIN_DEPLOY_DRONE",
             "drone_id": drone_id,
+            "incident_id": manual_inc_id,
             "reason": f"Admin dispatched drone to {payload.lat}, {payload.lng} manually."
         })
         
-    return {"status": "deployed", "drone_id": drone_id}
+    return {"status": "deployed", "drone_id": drone_id, "incident_id": manual_inc_id}

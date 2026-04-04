@@ -15,6 +15,9 @@ export interface BackendDrone {
   lng: number;
   battery: number;
   assigned_incident: string | null;
+  eta_seconds?: number;
+  path_progress?: number;
+  charging_progress?: number;
 }
 
 export interface BackendIncident {
@@ -94,6 +97,9 @@ export function mapDrone(b: BackendDrone): Drone {
     status:          mapDroneState(b.state),
     battery:         b.battery,
     targetIncidentId: b.assigned_incident ?? undefined,
+    eta_seconds:       b.eta_seconds,
+    path_progress:     b.path_progress,
+    charging_progress: b.charging_progress,
   };
 }
 

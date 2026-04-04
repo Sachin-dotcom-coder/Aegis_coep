@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Target, X, Scan, Loader2 } from 'lucide-react';
+import { Search, Target, X, Scan } from 'lucide-react';
 
 interface Props {
   onManualDispatch: (lat: number, lng: number) => void;
@@ -42,7 +42,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
         className="w-full flex items-center justify-between bg-black/60 hover:bg-white hover:text-black backdrop-blur-xl border border-white/10 px-6 py-4 rounded-2xl shadow-xl transition-all group active:scale-[0.98]"
       >
         <div className="flex items-center gap-4">
-          <Target size={20} className="group-hover:animate-spin" />
+          <Target size={20} className={showConsole ? '' : 'group-hover:animate-spin'} />
           <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Manual Dispatch</span>
         </div>
         <div className={`w-2 h-2 rounded-full ${showConsole ? 'bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]' : 'bg-white/20'}`} />

@@ -247,13 +247,59 @@ export function CityMap({
         iconAnchor: [18, 18],
       });
 
+      const popupContent = `
+        <div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:12px;background:#000;color:#fff;min-width:180px;border-radius:12px;border:1px solid rgba(255,255,255,0.1)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px">
+            <b style="color:#00ffff;letter-spacing:1px">${drone.id}</b>
+            <span style="font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.1);border-radius:4px">${drone.status.toUpperCase()}</span>
+          </div>
+          ${isMoving ? `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+                <span>MISSION PROGRESS</span>
+                <span>${drone.path_progress || 0}%</span>
+              </div>
+              <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+                <div style="width:${drone.path_progress || 0}%;height:100%;background:#00ffff;box-shadow:0 0 10px #00ffff"></div>
+              </div>
+              <div style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:6px">
+                <span style="color:rgba(255,255,255,0.4)">ETA:</span>
+                <span style="color:#fff;font-weight:700">${Math.floor((drone.eta_seconds || 0) / 60)}m ${(drone.eta_seconds || 0) % 60}s</span>
+              </div>
+            </div>
+          ` : ''}
+          ${drone.status === 'charging' ? `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+                <span>CHARGING PROGRESS</span>
+                <span>${drone.charging_progress || 0}%</span>
+              </div>
+              <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+                <div style="width:${drone.charging_progress || 0}%;height:100%;background:#00ff00;box-shadow:0 0 10px #00ff00"></div>
+              </div>
+            </div>
+          ` : ''}
+          <div style="margin-bottom:0">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;color:rgba(255,255,255,0.6)">
+              <span>BATTERY</span>
+              <span>${drone.battery.toFixed(0)}%</span>
+            </div>
+            <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden">
+              <div style="width:${drone.battery}%;height:100%;background:${drone.battery < 20 ? '#ff4444' : drone.battery < 50 ? '#ffbb00' : '#00ff00'};box-shadow:0 0 10px ${drone.battery < 20 ? '#ff4444' : drone.battery < 50 ? '#ffbb00' : '#00ff00'}"></div>
+            </div>
+          </div>
+        </div>
+      `;
+
       if (existing.has(drone.id)) {
         const marker = existing.get(drone.id)!;
         marker.setLatLng([drone.position.lat, drone.position.lng]);
         marker.setIcon(droneIcon);
+        marker.setPopupContent(popupContent);
       } else {
         const marker = L.marker([drone.position.lat, drone.position.lng], { icon: droneIcon, zIndexOffset: 900 }).addTo(map);
-        marker.bindPopup(`<div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:8px;background:#000;color:#fff"><b>${drone.id}</b><br/>Status: ${drone.status.toUpperCase()}<br/>Battery: ${drone.battery.toFixed(0)}%</div>`);
+        marker.bindPopup(popupContent, { className: 'custom-popup', offset: [0, -10] });
+        marker.bindTooltip(isMoving ? `ETA: ${Math.floor((drone.eta_seconds || 0) / 60)}m ${(drone.eta_seconds || 0) % 60}s` : drone.id, { direction: 'top', className: 'custom-tooltip' });
         existing.set(drone.id, marker);
       }
     });

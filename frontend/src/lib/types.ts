@@ -8,6 +8,7 @@ export type IncidentType =
   | 'unauthorized_entry'
   | 'suspicious_vehicle'
   | 'abandoned_object'
+  | 'manual_deployment'
   | 'crowd_formation';
 
 export type IncidentStatus =
@@ -43,6 +44,9 @@ export interface Drone {
   targetIncidentId?: string;
   basePosition: GeoPoint;
   zoneId: string; // Dynamic sector ID
+  eta_seconds?: number;
+  path_progress?: number;
+  charging_progress?: number;
 }
 
 export interface Incident {

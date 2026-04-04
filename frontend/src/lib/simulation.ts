@@ -16,6 +16,7 @@ const INCIDENT_TYPES: { type: IncidentType; severity: number; label: string }[] 
   { type: 'unauthorized_entry', severity: 6, label: 'Unauthorized Entry' },
   { type: 'suspicious_vehicle', severity: 5, label: 'Suspicious Vehicle' },
   { type: 'abandoned_object', severity: 7, label: 'Abandoned Object' },
+  { type: 'manual_deployment', severity: 10, label: 'MANUAL DEPLOYMENT' },
 ];
 
 export function getIncidentLabel(type: string): string {

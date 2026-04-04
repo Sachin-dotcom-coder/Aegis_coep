@@ -101,9 +101,39 @@ export function DroneFleetPanel({ drones, expanded: externalExpanded, onClose }:
                       <div className="flex-1">
                          <div className="flex flex-col">
                             <span className="text-[9px] font-mono text-white/10 uppercase tracking-[0.3em] mb-2">Current Task</span>
-                            <span className={`text-2xl font-black tracking-[0.2em] uppercase ${drone.status === 'idle' ? 'text-white/20' : 'text-blue-500'} italic`}>
-                              {drone.status.replace('_', ' ')}
-                            </span>
+                            <div className="flex items-center gap-4">
+                              <span className={`text-2xl font-black tracking-[0.2em] uppercase ${
+                                drone.status === 'idle' ? 'text-white/20' : 
+                                drone.status === 'on_site' ? 'text-red-500' : 
+                                drone.status === 'charging' ? 'text-green-500' : 
+                                'text-blue-500'
+                              } italic`}>
+                                {drone.status.replace('_', ' ')}
+                              </span>
+                              {(drone.status === 'en_route' || drone.status === 'recalled') && drone.eta_seconds !== undefined && (
+                                <span className="text-[10px] font-mono text-blue-400 font-black tracking-widest px-3 py-1 bg-blue-400/10 rounded-lg">
+                                  ETA: {Math.floor(drone.eta_seconds / 60)}M {drone.eta_seconds % 60}S
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Mission/Charging Progress Bar */}
+                            {(drone.status !== 'idle' && drone.status !== 'on_site') && (
+                              <div className="mt-4 w-full max-w-md">
+                                <div className="flex justify-between text-[8px] font-mono text-white/20 uppercase tracking-widest mb-1.5">
+                                  <span>{drone.status === 'charging' ? 'Recharge Level' : 'Vector Progress'}</span>
+                                  <span>{Math.round(drone.status === 'charging' ? (drone.charging_progress || 0) : (drone.path_progress || 0))}%</span>
+                                </div>
+                                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full transition-all duration-1000 ${
+                                      drone.status === 'charging' ? 'bg-green-500' : 'bg-blue-500'
+                                    }`}
+                                    style={{ width: `${drone.status === 'charging' ? (drone.charging_progress || 0) : (drone.path_progress || 0)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                          </div>
                       </div>
 
