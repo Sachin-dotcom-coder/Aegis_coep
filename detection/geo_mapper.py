@@ -9,7 +9,10 @@ Divides the camera frame into 4 zones (a 2×2 grid)
 Each zone has a pixel bounding box + corresponding real-world lat/lng
 When a person is detected at pixel (cx, cy), it finds which zone they're in
 Returns the zone's lat/lng and metadata
-You should customise the zone
+
+IMPORTANT: lat/lng are based on CAMERA position, not pixel position.
+All incidents from the same camera will have identical lat/lng (the camera's fixed location).
+The zone changes based on pixel position, but coordinates don't.
 """
 
 from dataclasses import dataclass
@@ -37,13 +40,24 @@ class Zone:
 
 # Demo zones — divide a 640×480 frame into a 2×2 grid
 ZONES = [
-    Zone("Z1", 0,   0,   320, 240, 12.9716, 77.5946, 0.3, 30),
-    Zone("Z2", 320, 0,   640, 240, 12.9720, 77.5950, 0.5, 45),
-    Zone("Z3", 0,   240, 320, 480, 12.9710, 77.5940, 0.7, 60),
-    Zone("Z4", 320, 240, 640, 480, 12.9725, 77.5955, 0.4, 25),
+    Zone("Z1", 0,   0,   320, 240, 18.38, 73.66, 0.3, 30),
+    Zone("Z2", 320, 0,   640, 240, 18.38, 73.66, 0.5, 45),
+    Zone("Z3", 0,   240, 320, 480, 18.38, 73.66, 0.7, 60),
+    Zone("Z4", 320, 240, 640, 480, 18.38, 73.66, 0.4, 25),
 ]
 
-DEFAULT_ZONE = Zone("Z1", 0, 0, 9999, 9999, 12.9716, 77.5946, 0.3, 30)
+DEFAULT_ZONE = Zone("Z1", 0, 0, 9999, 9999, 18.38, 73.66, 0.3, 30)
+
+# ---------------------------------------------------------------------------
+# Camera locations - Each camera has a fixed lat/lng
+# All incidents from the same camera will report this location
+# ---------------------------------------------------------------------------
+CAMERA_LOCATIONS = {
+    "CAM-01": (12.9720, 77.5945),  # Fixed camera position
+    "CAM-02": (12.9715, 77.5935),
+    "CAM-03": (12.9730, 77.5960),
+    "CAM-04": (12.9705, 77.5950),
+}
 
 
 def get_zone(cx: float, cy: float) -> Zone:
@@ -54,39 +68,20 @@ def get_zone(cx: float, cy: float) -> Zone:
     return DEFAULT_ZONE
 
 
-def pixel_to_latlon(cx: float, cy: float):
+def pixel_to_latlon(cx: float, cy: float, camera_id: str = "CAM-01"):
     """
     Return (lat, lng, zone) for a given pixel centre.
     
-    NEW: Interpolates lat/lng based on pixel position within the zone,
-    instead of just returning zone centroid. This gives precise location data.
+    lat/lng are the CAMERA's fixed location (all incidents from this camera have same coords).
+    zone is determined by pixel position within the frame.
     """
     zone = get_zone(cx, cy)
     
-    # Calculate position ratio within the zone (0.0 = left/top, 1.0 = right/bottom)
-    zone_width = zone.px_x2 - zone.px_x1
-    zone_height = zone.px_y2 - zone.px_y1
+    # Get camera's fixed location
+    if camera_id in CAMERA_LOCATIONS:
+        lat, lng = CAMERA_LOCATIONS[camera_id]
+    else:
+        # Fallback to default zone centroid if camera not registered
+        lat, lng = zone.lat, zone.lng
     
-    # Prevent division by zero
-    if zone_width == 0 or zone_height == 0:
-        return zone.lat, zone.lng, zone
-    
-    # Ratio of pixel position within zone
-    x_ratio = (cx - zone.px_x1) / zone_width  # 0.0-1.0
-    y_ratio = (cy - zone.px_y1) / zone_height  # 0.0-1.0
-    
-    # Define corner coordinates for this zone
-    # Top-left, top-right, bottom-left, bottom-right
-    # These are estimated based on typical camera layout
-    # You may need to adjust these based on your actual camera calibration
-    
-    # For demo: assume zones form a rectangle
-    # Each zone gets interpolated based on its position
-    lat_variance = 0.001  # ~111 meters per 0.001 degree
-    lng_variance = 0.001
-    
-    # Calculate interpolated lat/lng
-    interpolated_lat = zone.lat - (y_ratio - 0.5) * lat_variance
-    interpolated_lng = zone.lng + (x_ratio - 0.5) * lng_variance
-    
-    return interpolated_lat, interpolated_lng, zone
+    return lat, lng, zone
