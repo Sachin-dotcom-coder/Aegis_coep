@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import { Drone, Incident } from '@/lib/types';
 import { DISPATCH_ZONES } from '@/lib/simulation';
-import { Maximize2, Minimize2, X, Activity, Loader2 } from 'lucide-react';
+import { Maximize2, Minimize2, X, Activity, Loader2, Scan } from 'lucide-react';
+import React, { Suspense } from 'react';
+import { Drone3DView } from './Drone3DView';
 
 const PUNE_CENTER: [number, number] = [18.5204, 73.8567];
 const PUNE_BOUNDS: L.LatLngBoundsExpression = [[18.42, 73.72], [18.62, 73.98]];
@@ -25,6 +27,11 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
   const [maximized, setMaximized] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const layerControlRef = useRef<L.Control.Layers | null>(null);
+  const [activeLiveFeed, setActiveLiveFeed] = useState<string | null>(null);
+  const [videoMaximized, setVideoMaximized] = useState(false);
+
+  // Auto-detect drones on site for live feed alert
+  const onSiteDrones = drones.filter(d => d.status === 'on_site');
 
   const fitMapToPune = useCallback(() => {
     mapRef.current?.fitBounds(PUNE_BOUNDS, {
@@ -134,9 +141,12 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
       const isActive = drone.status === 'en_route' || drone.status === 'on_site';
       const droneIcon = L.divIcon({
         className: '',
-        html: `<div style="width:${isActive ? 16 : 12}px;height:${isActive ? 16 : 12}px;border-radius:999px;background:${isActive ? '#fff' : '#666'};border:2px solid ${isActive ? '#fff' : '#333'};box-shadow:${isActive ? '0 0 15px rgba(255,255,255,0.8)' : 'none'}"></div>`,
-        iconSize: [isActive ? 16 : 12, isActive ? 16 : 12],
-        iconAnchor: [isActive ? 8 : 6, isActive ? 8 : 6],
+        html: `<div style="position:relative; width:${isActive ? 32 : 24}px; height:${isActive ? 32 : 24}px;">
+          <img src="/drone_icon.png" style="width:100%; height:100%; filter: brightness(${isActive ? 1 : 0.6}) drop-shadow(0 0 5px ${isActive ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'}); transition: all 0.3s ease;" />
+          ${isActive ? '<div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; border:2px solid #fff; box-shadow:0 0 15px #fff; animation: pulse 2s infinite; opacity: 0.2;"></div>' : ''}
+        </div>`,
+        iconSize: [isActive ? 32 : 24, isActive ? 32 : 24],
+        iconAnchor: [isActive ? 16 : 12, isActive ? 16 : 12],
       });
 
       if (existing.has(drone.id)) {
@@ -218,6 +228,104 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
         </div>
       )}
 
+      <div ref={containerRef} className="h-full w-full absolute inset-0 z-0" />
+
+      {/* Live Feed Deployment Alerts */}
+      {onSiteDrones.length > 0 && !activeLiveFeed && (
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1001] animate-in slide-in-from-top-10 duration-700">
+          <div className="flex items-center gap-4 bg-red-950/40 backdrop-blur-3xl border-2 border-red-500/40 px-10 py-5 rounded-3xl shadow-[0_40px_100px_rgba(255,0,0,0.4)]">
+            <div className="relative">
+              <Activity className="text-red-500 animate-pulse" size={40} />
+              <div className="absolute inset-0 bg-red-500 blur-2xl opacity-40 animate-pulse" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-2xl font-black tracking-[0.3em] text-white uppercase italic font-mono leading-none">On-Site Deployment Detected</span>
+              <span className="text-[12px] font-mono tracking-[0.45em] text-red-500/80 uppercase mt-2 font-bold">Drone {onSiteDrones[0].id.replace('drone_', 'D-')} reached objective</span>
+            </div>
+            <button 
+              onClick={() => setActiveLiveFeed(onSiteDrones[0].id)}
+              className="ml-10 group relative px-10 py-4 bg-red-600 hover:bg-white text-white hover:text-black transition-all duration-300 rounded-2xl shadow-[0_20px_60px_rgba(255,0,0,0.6)] overflow-hidden"
+            >
+              <div className="relative z-10 flex items-center gap-4">
+                <Scan size={24} className="group-hover:animate-spin" />
+                <span className="text-lg font-black tracking-[0.2em] uppercase">Bridge Live Link</span>
+              </div>
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Live Video Feed Drilldown Overlay */}
+      {activeLiveFeed && (
+        <div className={`${videoMaximized ? 'fixed inset-0 z-[40000] p-10 bg-black/90 backdrop-blur-xl animate-in zoom-in-95 duration-500' : 'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2001] w-[800px] h-[500px] animate-in zoom-in-75 duration-500'}`}>
+          <div className="relative w-full h-full bg-black border-4 border-white/10 rounded-3xl overflow-hidden shadow-[0_50px_150px_rgba(0,0,0,1)]">
+            {/* Tactical Camera HUD Overlay */}
+            <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-10">
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-red-600 rounded-full animate-ping" />
+                    <span className="text-2xl font-black tracking-[0.4em] text-white uppercase font-mono">FEED LINK: {activeLiveFeed.replace('drone_', 'D-')}</span>
+                  </div>
+                  <span className="text-sm font-mono text-white/40 tracking-[0.3em] uppercase mt-1">Resolution: 4K UHD // Aegis Neuralink Protocol</span>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3 px-6 py-2 bg-white/5 border border-white/20 rounded-xl">
+                    <span className="text-xl font-mono text-white font-black">REC</span>
+                    <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-end justify-between">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-mono text-white/60 uppercase tracking-[0.4em]">Signal Integrity:</span>
+                    <div className="flex gap-1">
+                      {[0,1,2,3,4].map(i => <div key={i} className="w-2 h-6 bg-green-500 rounded-sm" />)}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">Aegis Ground Optic Link [SECURE_ENCRYPTED]</span>
+                </div>
+              </div>
+              
+              <div className="absolute inset-0 border-[40px] border-black/10 opacity-40 pointer-events-none" style={{ background: 'repeating-linear-gradient(transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px)' }} />
+            </div>
+
+            {/* Close / Controls */}
+            <div className="absolute top-8 right-8 z-30 flex items-center gap-4">
+              <button 
+                onClick={() => setVideoMaximized(!videoMaximized)}
+                className="p-3 bg-white/10 hover:bg-white hover:text-black rounded-2xl border border-white/10 backdrop-blur-xl transition-all shadow-2xl"
+              >
+                {videoMaximized ? <Minimize2 size={24} /> : <Maximize2 size={24} />}
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveLiveFeed(null);
+                  setVideoMaximized(false);
+                }}
+                className="p-3 bg-white/10 hover:bg-red-600 rounded-2xl border border-white/10 backdrop-blur-xl transition-all shadow-2xl"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <video 
+              autoPlay 
+              loop 
+              muted 
+              playsInline 
+              src="/video.mp4" 
+              className="w-full h-full object-cover opacity-80"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Selected Unit 3D Tactical Overlay */}
       {selectedUnit !== null && (
         <div className={`absolute bottom-10 right-10 ${maximized ? 'w-[600px] h-[350px]' : 'w-[400px] h-[250px]'} z-[10002] transition-all animate-in fade-in slide-in-from-bottom-4 duration-500`}>
@@ -228,31 +336,29 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                 <span className="text-xs font-black tracking-[0.2em] text-white uppercase font-mono">Tactical Unit D${selectedUnit} View</span>
               </div>
               <button 
-                onClick={() => setSelectedUnit(null)}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedUnit(null);
+                }}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors pointer-events-auto"
               >
                 <X size={18} />
               </button>
             </div>
             
-            <div className="pt-12 w-full h-full">
-              {/* <Suspense fallback={
-                <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-black/50">
+            <div className="pt-12 w-full h-full relative z-10">
+              <Suspense fallback={
+                <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-black/80">
                   <Loader2 className="w-10 h-10 text-white/40 animate-spin" />
-                  <span className="text-[10px] font-mono tracking-[0.4em] text-white/40 uppercase">Linking Neural Link...</span>
+                  <span className="text-[10px] font-mono tracking-[0.4em] text-white/40 uppercase animate-pulse">Syncing Drone Neuralink...</span>
                 </div>
               }>
                 <Drone3DView drones={drones.slice(0, 3)} />
-              </Suspense> */}
-              <div className="w-full h-full flex items-center justify-center text-white/40 font-mono text-[10px] uppercase tracking-widest bg-black/50">
-                3D Overlay Offline for Diagnostics
-              </div>
+              </Suspense>
             </div>
           </div>
         </div>
       )}
-
-      <div ref={containerRef} className="h-full w-full" />
 
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -296,6 +402,11 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
           padding: 8px 12px !important;
           border-radius: 8px !important;
           box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+        }
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.6); opacity: 0; }
+          100% { transform: scale(1); opacity: 0.5; }
         }
       `}} />
     </div>
