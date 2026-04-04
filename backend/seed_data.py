@@ -130,7 +130,7 @@ async def seed():
 
     now = datetime.datetime.utcnow()
 
-    # ── 10 heavy-load incidents (to test scrolling) ──────────────────────────
+    # ── 3 streamlined incidents ──────────────────────────────
     incidents = [
         {
             "id": f"INC-00{i+1}",
@@ -147,9 +147,9 @@ async def seed():
             "timestamp": now - datetime.timedelta(minutes=i*2),
             "decision_confidence": 0.75,
             "priority_score": 8.5,
-            "status": "in_progress" if i < 6 else "pending",
-            "assigned_drone": f"D{i+1}" if i < 6 else None,
-            "eta_seconds": 30 if i < 6 else None,
+            "status": "auto",           # Force FleetManager to pick it up
+            "assigned_drone": None,     # Let backend choose
+            "eta_seconds": None,
         } for i in range(3)
     ]
 

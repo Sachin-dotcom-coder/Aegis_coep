@@ -126,7 +126,7 @@ class DroneFleet:
                 drone_number += 1
                 
         self.pending_queue = [] 
-
+        self.active_mission_ids = set() # Track current incident IDs assigned to drones
     def enqueue_incident(self, incident: dict):
         # Prevent queueing the same incident twice
         if not any(i.get("id") == incident.get("id") for i in self.pending_queue):
@@ -180,22 +180,34 @@ class DroneFleet:
     async def run(self, broadcast_fn, audit_fn=None):
         print("🚀 Drone Fleet Background Task Started")
         last_db_sync = 0
+        last_heartbeat = 0
         while True:
             try:
-                # ── Sync with DB periodically (supports manual seeds/ML scripts) 
                 loop_time = asyncio.get_event_loop().time()
+                
+                # ── Heartbeat Log (Every 10s) ─────────
+                if loop_time - last_heartbeat > 10.0:
+                    active = len(self.active_mission_ids)
+                    pending = len(self.pending_queue)
+                    print(f"📡 FLEET PULSE: {active} Missions Active | {pending} Pending | All Drones Online")
+                    last_heartbeat = loop_time
+
+                # ── Sync with DB periodically (supports manual seeds/ML scripts) 
                 if loop_time - last_db_sync > 5.0:
                     from app.db.mongo import get_db
                     db = await get_db()
                     if db is not None:
-                        # Find potential incidents not currently in memory
+                        # Find potential incidents not currently in memory or processed
                         cursor = db.incidents.find({
                             "status": {"$in": ["queued", "pending", "auto"]},
                             "assigned_drone": None
                         })
                         async for doc in cursor:
                             inc_id = doc.get("id")
-                            if inc_id and not any(q.get("id") == inc_id for q in self.pending_queue):
+                            in_queue = any(q.get("id") == inc_id for q in self.pending_queue)
+                            is_active = inc_id in self.active_mission_ids
+                            
+                            if inc_id and not in_queue and not is_active:
                                 doc.pop("_id", None)
                                 self.pending_queue.append(doc)
                     last_db_sync = loop_time
@@ -211,9 +223,13 @@ class DroneFleet:
                             self.trigger_recall(drone)
                         
                     events = drone.tick()
-                    if audit_fn and events:
-                        for event_name, incident_id in events:
-                            asyncio.create_task(audit_fn(event_name, incident_id, drone.id))
+                    if events:
+                        for event_name, inc_id in events:
+                            if event_name == "DRONE_TASK_COMPLETE":
+                                if inc_id in self.active_mission_ids:
+                                    self.active_mission_ids.remove(inc_id)
+                            if audit_fn:
+                                asyncio.create_task(audit_fn(event_name, inc_id, drone.id))
                 
                 self.process_queue(audit_fn)
                 
@@ -252,7 +268,9 @@ class DroneFleet:
                     self.pending_queue.append(old_inc)
                 
                 inc_id = incident.get('id', 'N/A')
+                print(f"🚀 MISSION START: Drone {target_drone.id} PREEMPTED to {inc_id}")
                 target_drone.dispatch(incident['lat'], incident['lng'], incident, inc_priority)
+                self.active_mission_ids.add(inc_id) # Lock the mission
                 self.pending_queue.remove(incident)
                 self.sort_pending_queue()
                 
@@ -281,7 +299,9 @@ class DroneFleet:
                 best_drone = self.best_drone_for(incident['lat'], incident['lng'])
                 if best_drone:
                     inc_id = incident.get('id', 'N/A')
+                    print(f"🚀 MISSION START: Drone {best_drone.id} dispatched to {inc_id}")
                     best_drone.dispatch(incident['lat'], incident['lng'], incident, inc_priority)
+                    self.active_mission_ids.add(inc_id) # Lock the mission
                     self.pending_queue.remove(incident)
                     
                     dist = math.sqrt((best_drone.lat - incident['lat'])**2 + (best_drone.lng - incident['lng'])**2)

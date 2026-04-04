@@ -5,6 +5,8 @@ import { BrainCircuit, Maximize2, Minimize2 } from 'lucide-react';
 
 interface Props {
   incident: Incident | null;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
 }
 
 function ConfBar({ label, value, max = 1, expanded = false }: { label: string; value: number; max?: number; expanded?: boolean }) {
@@ -22,7 +24,7 @@ function ConfBar({ label, value, max = 1, expanded = false }: { label: string; v
   );
 }
 
-export function DecisionPanel({ incident }: Props) {
+export function DecisionPanel({ incident, onApprove, onReject }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   if (!incident) {
@@ -37,9 +39,8 @@ export function DecisionPanel({ incident }: Props) {
   // Ensure we find the zone even if the ID casing is different (e.g., Z1 vs z1)
   const zone = DISPATCH_ZONES.find(z => z.id.toLowerCase() === incident.zoneId?.toLowerCase()) || DISPATCH_ZONES[0];
   
-  // Safe calculation with fallback zone
   const priority = calculatePriority(incident, zone, 2);
-  const actionLabel = incident.decisionConfidence > 0.8 ? 'AUTO DISPATCH' : incident.decisionConfidence >= 0.5 ? 'HUMAN CONFIRM' : 'SILENT LOG';
+  const actionLabel = incident.decisionConfidence > 0.8 ? 'AUTO DISPATCH' : incident.decisionConfidence >= 0.5 ? 'HUMAN CONFIRM' : 'LOW CONFIDENCE';
 
   return (
     <div className={`glass-panel transition-all duration-300 flex flex-col ${
@@ -60,17 +61,17 @@ export function DecisionPanel({ incident }: Props) {
 
       <div className={`mb-6 p-4 rounded-xl bg-white/5 border border-white/10 ${expanded ? 'max-w-xl self-center w-full' : ''}`}>
         <div className={`${expanded ? 'text-2xl' : 'text-[11px]'} font-bold text-white mb-2 uppercase tracking-wider`}>
-          {getIncidentLabel(incident.type)}
+          {getIncidentLabel(incident.type as any)}
         </div>
         <div className={`${expanded ? 'text-sm' : 'text-[9px]'} text-white/40 font-mono tracking-widest uppercase`}>
-          SOURCE: {incident.cameraSource} · SECTOR: {zone.name}
+          SOURCE: {incident.cameraSource || 'UNKNOWN'} · SECTOR: {zone?.name || 'GENERIC'}
         </div>
       </div>
 
       <div className={`space-y-6 flex-1 overflow-y-auto scrollbar-thin ${expanded ? 'max-w-3xl self-center w-full' : ''}`}>
         <div className={expanded ? 'grid grid-cols-3 gap-8' : 'space-y-2.5'}>
           <ConfBar label="DETECTION" value={incident.detectionConfidence} expanded={expanded} />
-          <ConfBar label="RELIABILITY" value={zone.reliability} expanded={expanded} />
+          <ConfBar label="RELIABILITY" value={zone?.reliability || 0.8} expanded={expanded} />
           <ConfBar label="AI DECISION" value={incident.decisionConfidence} expanded={expanded} />
         </div>
 
@@ -94,6 +95,22 @@ export function DecisionPanel({ incident }: Props) {
             <div className={`${expanded ? 'text-4xl' : 'text-sm'} font-black tracking-tighter`}>{actionLabel}</div>
             <div className={`${expanded ? 'text-sm' : 'text-[9px]'} font-mono mt-2 font-bold opacity-70`}>FINAL PRIORITY SCORE: {incident.priorityScore.toFixed(2)}</div>
           </div>
+        </div>
+
+        {/* Command Controls */}
+        <div className="mt-8 flex gap-4">
+          <button
+            onClick={() => onApprove?.(incident.id)}
+            className="flex-1 bg-white hover:bg-green-500 text-black font-black py-4 rounded-xl text-[11px] tracking-[0.2em] uppercase transition-all hover:scale-[1.02] shadow-xl"
+          >
+            Dispatch Drone
+          </button>
+          <button
+            onClick={() => onReject?.(incident.id)}
+            className="flex-1 bg-white/5 hover:bg-red-600 border border-white/10 text-white font-black py-4 rounded-xl text-[11px] tracking-[0.2em] uppercase transition-all hover:scale-[1.02]"
+          >
+            Reject Detection
+          </button>
         </div>
       </div>
     </div>

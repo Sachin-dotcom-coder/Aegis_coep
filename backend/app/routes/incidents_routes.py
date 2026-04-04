@@ -18,22 +18,25 @@ async def create_incident(incident: Incident):
     
     # 2. Confidence gate — what to do with it
     action = gate(incident.decision_confidence)
-    incident.status = "pending" if action == "human" else "queued"
+    # Map gate action to database status
+    if action == "human":
+        incident.status = "pending"
+    elif action == "auto":
+        incident.status = "auto"
+    else:
+        incident.status = "queued"
     
-    print(f"🚦 Incident Received: Confidence ({incident.decision_confidence}) -> Action ({action})")
+    print(f"🚦 Incident Received: Confidence ({incident.decision_confidence}) -> Action ({action}) -> Status ({incident.status})")
     
     # 3. Geo dedup — is this the same event as something within 200m?
     merged = await dedup_or_merge(db, incident)
     if merged:
         return {"status": "merged", "incident_id": merged}
     
-    print(f"🚦 Incident Received: Confidence ({incident.decision_confidence}) -> Action ({action})")
-    
     # Auto-dispatch integration (if logic passes)
     from app.main import fleet
-    if action == "auto":
+    if incident.status == "auto":
         print("📨 Sending to Drone Fleet Priority Queue!")
-        # make sure to use model_dump() or dict() safely
         fleet.enqueue_incident(incident.dict())
     
     # 4. Save
@@ -77,22 +80,22 @@ async def approve_incident(incident_id: str):
 
 @router.post("/{incident_id}/reject")
 async def reject_incident(incident_id: str):
-    """Operator explicitly rejects a false positive incident."""
+    """Operator explicitly rejects a false positive incident, archiving it."""
     db = await get_db()
-    await db.incidents.update_one({"id": incident_id}, {"$set": {"status": "rejected"}})
+    await db.incidents.delete_one({"id": incident_id})
     await db.audit.insert_one({
         "timestamp": datetime.datetime.utcnow(),
         "action": "HUMAN_OPERATOR_REJECT",
         "incident_id": incident_id,
-        "reason": "Operator discarded as false positive."
+        "reason": "Operator manually confirmed false positive."
     })
     return {"status": "rejected"}
 
 @router.post("/{incident_id}/resolve")
 async def resolve_incident(incident_id: str):
-    """Admin manually marks an incident as completely resolved."""
+    """Admin manually marks an incident as resolved, removing from active registry."""
     db = await get_db()
-    await db.incidents.update_one({"id": incident_id}, {"$set": {"status": "resolved"}})
+    await db.incidents.delete_one({"id": incident_id})
     
     # Inform audit
     await db.audit.insert_one({
@@ -106,9 +109,9 @@ async def resolve_incident(incident_id: str):
 
 @router.post("/{incident_id}/cancel")
 async def cancel_incident(incident_id: str):
-    """Admin forcibly cancels an incident, removing it from active workflow."""
+    """Admin forcibly cancels an incident, removing it from active registry."""
     db = await get_db()
-    await db.incidents.update_one({"id": incident_id}, {"$set": {"status": "cancelled"}})
+    await db.incidents.delete_one({"id": incident_id})
     
     # Try removing from pending queue if it's there
     from app.main import fleet

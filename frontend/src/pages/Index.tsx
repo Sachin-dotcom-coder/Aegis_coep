@@ -68,7 +68,12 @@ const Index = () => {
           </button>
 
           <div className="flex-[6] basis-0 min-h-0 overflow-hidden flex flex-col">
-            <AlertsPanel incidents={sim.incidents} onSelect={sim.setSelectedIncident} selectedId={sim.selectedIncident?.id} />
+            <AlertsPanel 
+              incidents={sim.incidents} 
+              onSelect={sim.setSelectedIncident} 
+              onReject={sim.rejectIncident}
+              selectedId={sim.selectedIncident?.id} 
+            />
           </div>
 
           <div className="flex-[4] basis-0 min-h-0 overflow-hidden flex flex-col">
@@ -84,7 +89,11 @@ const Index = () => {
               <div className="absolute top-8 right-8 z-50">
                 <button onClick={() => sim.setSelectedIncident(null)} className="p-4 bg-white/10 hover:bg-red-600 rounded-2xl transition-all text-white"><X size={24} /></button>
               </div>
-              <DecisionPanel incident={sim.selectedIncident} />
+              <DecisionPanel 
+                incident={sim.selectedIncident} 
+                onApprove={sim.confirmIncident}
+                onReject={sim.rejectIncident}
+              />
            </div>
         </div>
       )}
