@@ -14,6 +14,26 @@ class DroneState(Enum):
     RECALLED = "recalled"
     CHARGING = "charging"
 
+# Geofencing: Defined as list of circles (lat, lng, radius_in_latlng)
+NO_FLY_ZONES = [
+    # Area 1: Pune Airport / Military (Viman Nagar North)
+    (18.5850, 73.9200, 0.025),
+    # Area 2: Central Protected Zone (Military Camp area)
+    (18.5250, 73.8850, 0.020),
+    # Area 3: University / Government restricted (Near NW)
+    (18.5550, 73.8250, 0.018),
+    # Area 4: South Perimeter (SE of D4 Katraj)
+    (18.4350, 73.9290, 0.028)
+]
+
+def is_in_nfz(lat, lng):
+    """Simple distance check for circular NFZs."""
+    for zlat, zlng, zrad in NO_FLY_ZONES:
+        dist = math.sqrt((lat - zlat)**2 + (lng - zlng)**2)
+        if dist < zrad:
+            return True
+    return False
+
 class Drone:
     def __init__(self, drone_id, start_lat, start_lng, charging_stations):
         self.id = drone_id
@@ -85,12 +105,35 @@ class Drone:
         dlat = target[0] - self.lat
         dlng = target[1] - self.lng
         dist = math.sqrt(dlat**2 + dlng**2)
-        if dist > DRONE_SPEED_LATLNG:
-            self.lat += (dlat / dist) * DRONE_SPEED_LATLNG
-            self.lng += (dlng / dist) * DRONE_SPEED_LATLNG
-        else:
-            self.lat = target[0]
-            self.lng = target[1]
+        
+        move_dist = DRONE_SPEED_LATLNG
+        if dist < move_dist:
+            self.lat, self.lng = target[0], target[1]
+            return
+
+        # Proposed next step
+        next_lat = self.lat + (dlat / dist) * move_dist
+        next_lng = self.lng + (dlng / dist) * move_dist
+
+        # Collision avoidance: simple tangential slip logic
+        if is_in_nfz(next_lat, next_lng):
+            # Try sliding: Rotate vector 45/-45 deg to find exit
+            for angle in [45, -45, 90, -90, 135, -135]:
+                rad = math.radians(angle)
+                rot_lat = (dlat * math.cos(rad) - dlng * math.sin(rad))
+                rot_lng = (dlat * math.sin(rad) + dlng * math.cos(rad))
+                mag = math.sqrt(rot_lat**2 + rot_lng**2)
+                
+                try_lat = self.lat + (rot_lat / mag) * move_dist
+                try_lng = self.lng + (rot_lng / mag) * move_dist
+                
+                if not is_in_nfz(try_lat, try_lng):
+                    self.lat, self.lng = try_lat, try_lng
+                    return
+            # If completely stuck, stop moving
+            return
+
+        self.lat, self.lng = next_lat, next_lng
 
     def _arrived(self):
         if not self.target: return False
@@ -109,11 +152,11 @@ class Drone:
 class DroneFleet:
     def __init__(self):
         self.stations = [
-            (18.5300, 73.8500), 
-            (18.5500, 73.9300), 
-            (18.5900, 73.7300), 
-            (18.4500, 73.8600), 
-            (18.5600, 73.9100)  
+            (18.6200, 73.8300), # Bhosari Industrial
+            (18.5600, 73.9400), # Kharadi HQ
+            (18.5900, 73.7400), # Hinjewadi IT
+            (18.4600, 73.8500), # Katraj Bypass
+            (18.4500, 73.7000)  # Paud Valley (D5 Down Left)
         ]
         
         self.drones = {}
