@@ -1,0 +1,3 @@
+﻿DBS found by code: ['NEW_DATABASE_NAME', 'admin', 'aegisai', 'config', 'finnov', 'local', 'prism', 'school']
+Success: aegisai database found.
+Collections: ['incidents', 'audit']

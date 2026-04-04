@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+  File "C:\Users\User\Downloads\Desktop\Aegis_coep\backend\app\routes\incidents_routes.py", line 39, in create_incident
+    await db.incidents.insert_one(incident.dict())
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\collection.py", line 891, in insert_one
+    self._insert_one(
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\collection.py", line 831, in _insert_one
+    self._database.client._retryable_write(
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\mongo_client.py", line 2082, in _retryable_write
+    return self._retry_with_session(retryable, func, s, bulk, operation, operation_id)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\mongo_client.py", line 1968, in _retry_with_session
+    return self._retry_internal(
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\_csot.py", line 125, in csot_wrapper
+    return func(self, *args, **kwargs)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\mongo_client.py", line 2014, in _retry_internal
+    ).run()
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\mongo_client.py", line 2765, in run
+    return self._read() if self._is_read else self._write()
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\mongo_client.py", line 2897, in _write
+    return self._func(self._session, conn, self._retryable)  # type: ignore
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\synchronous\collection.py", line 829, in _insert_command
+    _check_write_command_response(result)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\helpers_shared.py", line 322, in _check_write_command_response
+    _raise_last_write_error(write_errors)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python310\lib\site-packages\pymongo\helpers_shared.py", line 293, in _raise_last_write_error
+    raise WriteError(error.get("errmsg"), error.get("code"), error)
+pymongo.errors.WriteError: db already exists with different case already have: [aegisai] trying to create [AegisAI], full error: {'index': 0, 'code': 13297, 'errmsg': 'db already exists with different case already have: [aegisai] trying to create [AegisAI]'}
