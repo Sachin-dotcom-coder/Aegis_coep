@@ -72,6 +72,5 @@ from app.routes import drones_routes
 app.include_router(drones_routes.router)
 from app.routes import audits_routes
 app.include_router(audits_routes.router)
-
-# Connect WebSocket router
+# Connect WebSocket routers
 app.include_router(ws_router)
