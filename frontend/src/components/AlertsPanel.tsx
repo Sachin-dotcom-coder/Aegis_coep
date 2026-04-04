@@ -24,8 +24,8 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
     <div className={`glass-panel flex flex-col transition-all duration-300 ${expanded ? 'fixed inset-0 z-[20000] bg-black p-8' : 'h-full p-3 bg-black'
       }`}>
       <div className="flex items-center gap-3 mb-6">
-        <AlertTriangle size={expanded ? 24 : 13} className="text-white/60" />
-        <h3 className={`${expanded ? 'text-2xl' : 'text-sm'} font-semibold tracking-widest text-white uppercase font-sans`}>
+        <AlertTriangle size={expanded ? 24 : 16} className="text-white/60" />
+        <h3 className={`${expanded ? 'text-2xl' : 'text-[15px]'} font-semibold tracking-widest text-white uppercase font-sans`}>
           Active Alerts
         </h3>
         <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[13px] px-2 py-0.5'} ml-auto rounded-full bg-white/10 text-white font-mono`}>
