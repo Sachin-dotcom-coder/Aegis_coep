@@ -155,15 +155,35 @@ export function CityMap({
     existing.forEach((m, id) => { if (!currentIds.has(id)) { m.remove(); existing.delete(id); } });
 
     drones.forEach((drone) => {
-      const isActive = drone.status === 'en_route' || drone.status === 'on_site';
+      // Glow/Highlight is ONLY for mission-active drones
+      const isOnMission = drone.status === 'en_route' || drone.status === 'on_site';
+      const isMoving = drone.status === 'en_route' || drone.status === 'recalled';
+      const isOnSite = drone.status === 'on_site';
+      const isRecalled = drone.status === 'recalled';
+
+      const incident = incidents.find(i => i.id === drone.targetIncidentId);
+      
+      // Calculate rotation toward target if moving (incident for en_route, base for recalled)
+      let rotation = 0;
+      if (isMoving) {
+        const targetPos = isRecalled ? drone.basePosition : incident?.position;
+        if (targetPos) {
+          rotation = Math.atan2(
+            targetPos.lat - drone.position.lat,
+            targetPos.lng - drone.position.lng
+          ) * (180 / Math.PI);
+        }
+      }
+
       const droneIcon = L.divIcon({
         className: '',
-        html: `<div style="position:relative; width:${isActive ? 32 : 24}px; height:${isActive ? 32 : 24}px;">
-          <img src="/drone_icon.png" style="width:100%; height:100%; filter: brightness(${isActive ? 1 : 0.6}) drop-shadow(0 0 5px ${isActive ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0)'}); transition: all 0.3s ease;" />
-          ${isActive ? '<div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; border:2px solid #fff; box-shadow:0 0 15px #fff; animation: pulse 2s infinite; opacity: 0.2;"></div>' : ''}
+        html: `<div style="position:relative; width:36px; height:36px; transform: rotate(${rotation}deg); transition: transform 0.5s ease;">
+          <img src="/drone_icon.png" style="width:100%; height:100%; filter: brightness(${isOnMission ? 1.2 : 0.4}) drop-shadow(0 0 8px ${isOnSite ? 'rgba(255,80,80,1)' : isOnMission ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,0)'});" />
+          ${isOnMission ? `<div style="position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; border:2px solid ${isOnSite ? '#ff4444' : '#fff'}; box-shadow:0 0 15px ${isOnSite ? '#ff4444' : '#fff'}; animation: pulse 1.5s infinite; opacity: 0.2;"></div>` : ''}
+          <div style="position:absolute;bottom:-24px;left:50%;transform:translateX(-50%) rotate(${-rotation}deg);white-space:nowrap;background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:4px;padding:2px 6px;font-size:10px;font-weight:900;font-family:'IBM Plex Mono',monospace;color:#fff">${drone.id}</div>
         </div>`,
-        iconSize: [isActive ? 32 : 24, isActive ? 32 : 24],
-        iconAnchor: [isActive ? 16 : 12, isActive ? 16 : 12],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       });
 
       if (existing.has(drone.id)) {
@@ -172,11 +192,11 @@ export function CityMap({
         marker.setIcon(droneIcon);
       } else {
         const marker = L.marker([drone.position.lat, drone.position.lng], { icon: droneIcon, zIndexOffset: 900 }).addTo(map);
-        marker.bindPopup(`<div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:4px;background:#000;color:#fff"><b>${drone.id.replace('drone_', 'D-')}</b><br/>Status: ${drone.status}<br/>Battery: ${drone.battery.toFixed(0)}%</div>`);
+        marker.bindPopup(`<div style="font-size:12px;font-family:'IBM Plex Mono',monospace;padding:8px;background:#000;color:#fff"><b>${drone.id}</b><br/>Status: ${drone.status.toUpperCase()}<br/>Battery: ${drone.battery.toFixed(0)}%</div>`);
         existing.set(drone.id, marker);
       }
     });
-  }, [drones]);
+  }, [drones, incidents]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -212,14 +232,31 @@ export function CityMap({
     existing.forEach((line) => line.remove());
     existing.clear();
 
-    drones.filter((d) => d.status === 'en_route' && d.targetIncidentId).forEach((drone) => {
-      const incident = incidents.find((i) => i.id === drone.targetIncidentId);
-      if (!incident) return;
-      const line = L.polyline([[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]], {
-        color: '#fff', weight: 2, dashArray: '8 6', opacity: 0.6,
-      }).addTo(map);
-      existing.set(drone.id, line);
-    });
+    drones
+      .filter((d) => d.status === 'en_route' && d.targetIncidentId)
+      .forEach((drone) => {
+        const incident = incidents.find((i) => i.id === drone.targetIncidentId);
+        if (!incident) return;
+
+        // Trace of the target path (faded static line)
+        L.polyline(
+          [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
+          { color: '#ffffff', weight: 1, opacity: 0.1 }
+        ).addTo(map);
+
+        // Animated FLOWING line to the target
+        const line = L.polyline(
+          [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
+          { 
+            color: '#ffffff', 
+            weight: 2, 
+            dashArray: '12 12', 
+            className: 'flowing-route', // Dynamic CSS animation
+            opacity: 0.7 
+          }
+        ).addTo(map);
+        existing.set(drone.id, line);
+      });
   }, [drones, incidents]);
 
   const mapContent = (
@@ -478,6 +515,15 @@ export function CityMap({
           padding: 8px 12px !important;
           border-radius: 8px !important;
           box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+        }
+        .flowing-route {
+          stroke-dasharray: 12, 12;
+          animation: flow 1s linear infinite;
+          filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
+        }
+        @keyframes flow {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
         }
         @keyframes pulse {
           0% { transform: scale(1); opacity: 0.5; }

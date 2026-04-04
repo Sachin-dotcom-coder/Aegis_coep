@@ -179,12 +179,36 @@ class DroneFleet:
 
     async def run(self, broadcast_fn, audit_fn=None):
         print("🚀 Drone Fleet Background Task Started")
+        last_db_sync = 0
         while True:
             try:
+                # ── Sync with DB periodically (supports manual seeds/ML scripts) 
+                loop_time = asyncio.get_event_loop().time()
+                if loop_time - last_db_sync > 5.0:
+                    from app.db.mongo import get_db
+                    db = await get_db()
+                    if db is not None:
+                        # Find potential incidents not currently in memory
+                        cursor = db.incidents.find({
+                            "status": {"$in": ["queued", "pending", "auto"]},
+                            "assigned_drone": None
+                        })
+                        async for doc in cursor:
+                            inc_id = doc.get("id")
+                            if inc_id and not any(q.get("id") == inc_id for q in self.pending_queue):
+                                doc.pop("_id", None)
+                                self.pending_queue.append(doc)
+                    last_db_sync = loop_time
+
                 for drone in self.drones.values():
-                    # Smart return for idle drones stuck out in the wild
+                    # Tactical standby: Keep drones in the field if incidents are pending.
+                    # Only return if battery is critical (< 25%) or if the entire queue is empty.
+                    low_battery = drone.battery < 25.0
+                    no_pending_tasks = len(self.pending_queue) == 0
+                    
                     if drone.state == DroneState.IDLE and drone.assigned_incident is None and not self._is_at_station(drone):
-                        self.trigger_recall(drone)
+                        if low_battery or no_pending_tasks:
+                            self.trigger_recall(drone)
                         
                     events = drone.tick()
                     if audit_fn and events:
@@ -239,6 +263,17 @@ class DroneFleet:
                 
                 if audit_fn:
                     asyncio.create_task(audit_fn("PREEMPTIVE_DISPATCH", inc_id, target_drone.id))
+                
+                # Sync status to DB
+                async def sync_db():
+                    from app.db.mongo import get_db
+                    db = await get_db()
+                    if db is not None:
+                        await db.incidents.update_one(
+                            {"id": inc_id}, 
+                            {"$set": {"status": "en_route", "assigned_drone": target_drone.id, "eta_seconds": int(eta)}}
+                        )
+                asyncio.create_task(sync_db())
                 assigned = True
             
             # If no preemption, try traditional best drone
@@ -255,4 +290,15 @@ class DroneFleet:
                     
                     if audit_fn:
                         asyncio.create_task(audit_fn("AUTO_DISPATCH", inc_id, best_drone.id))
+
+                    # Sync status to DB
+                    async def sync_db_regular():
+                        from app.db.mongo import get_db
+                        db = await get_db()
+                        if db is not None:
+                            await db.incidents.update_one(
+                                {"id": inc_id}, 
+                                {"$set": {"status": "en_route", "assigned_drone": best_drone.id, "eta_seconds": int(eta)}}
+                            )
+                    asyncio.create_task(sync_db_regular())
                     assigned = True

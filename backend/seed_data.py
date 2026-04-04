@@ -150,7 +150,7 @@ async def seed():
             "status": "in_progress" if i < 6 else "pending",
             "assigned_drone": f"D{i+1}" if i < 6 else None,
             "eta_seconds": 30 if i < 6 else None,
-        } for i in range(10)
+        } for i in range(3)
     ]
 
     result = await db.incidents.insert_many(incidents)
