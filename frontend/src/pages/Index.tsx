@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { X, Activity } from 'lucide-react';
 import { BootSequence } from '@/components/BootSequence';
 import { Navbar } from '@/components/Navbar';
 import { CityMap } from '@/components/CityMap';
@@ -7,10 +8,15 @@ import { DroneFleetPanel } from '@/components/DroneFleetPanel';
 import { DecisionPanel } from '@/components/DecisionPanel';
 import { AuditLog } from '@/components/AuditLog';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { ManualCommandPanel } from '@/components/ManualCommandPanel';
+import { ActiveMissionsPanel } from '@/components/ActiveMissionsPanel';
 import { useSimulation } from '@/hooks/useSimulation';
 
 const Index = () => {
   const [booted, setBooted] = useState(false);
+  const [activeLiveFeed, setActiveLiveFeed] = useState<string | null>(null);
+  const [videoMaximized, setVideoMaximized] = useState(false);
+  const [showFleetModal, setShowFleetModal] = useState(false);
   const sim = useSimulation();
   const bootRef = useRef(sim.boot);
   bootRef.current = sim.boot;
@@ -28,32 +34,84 @@ const Index = () => {
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       <Navbar drones={sim.drones} incidents={sim.incidents} />
 
-      <div className="flex-1 flex overflow-hidden min-h-0" style={{ height: 'calc(100vh - 11rem)' }}>
-        <div className="flex-[65] min-w-0 min-h-0 p-2" style={{ height: '100%' }}>
+      <div className="flex-1 flex overflow-hidden min-h-0" style={{ height: 'calc(100vh - 16rem)' }}>
+        <div className="flex-[40] min-w-0 min-h-0 p-2" style={{ height: '100%' }}>
           <div className="relative h-full w-full min-w-0 min-h-0">
             <CityMap
               drones={sim.drones}
               incidents={sim.incidents}
               onIncidentClick={sim.setSelectedIncident}
+              onManualDispatch={sim.manualDispatch}
+              onAbort={sim.abortDrone}
+              activeLiveFeed={activeLiveFeed}
+              setActiveLiveFeed={setActiveLiveFeed}
+              videoMaximized={videoMaximized}
+              setVideoMaximized={setVideoMaximized}
             />
           </div>
         </div>
 
-        <div className="flex-[35] w-full max-w-sm min-w-[20rem] min-h-0 flex flex-col p-2 pl-0 gap-1.5" style={{ height: '100%' }}>
-          <div className="flex-[4] min-h-0 overflow-hidden">
+        <div className="flex-[60] w-full max-w-2xl min-w-[30rem] min-h-0 flex flex-col p-2 pl-0 gap-1.5" style={{ height: '100%' }}>
+          <ManualCommandPanel onManualDispatch={sim.manualDispatch} />
+          
+          <button 
+            onClick={() => setShowFleetModal(true)}
+            className="w-full flex items-center justify-between bg-white/5 hover:bg-white hover:text-black border border-white/10 px-6 py-4 rounded-2xl shadow-xl transition-all group mb-1.5 active:scale-95 translate-y-0 hover:-translate-y-0.5"
+          >
+            <div className="flex items-center gap-4">
+              <Activity size={20} className="group-hover:animate-ping text-white/60 group-hover:text-black" />
+              <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Live Fleet Telemetry</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-white/20 group-hover:text-black/40 uppercase tracking-widest">Aegis-Linked</span>
+            </div>
+          </button>
+
+          <div className="flex-[6] min-h-0 overflow-hidden">
             <AlertsPanel incidents={sim.incidents} onSelect={sim.setSelectedIncident} selectedId={sim.selectedIncident?.id} />
           </div>
-          <div className="flex-[3] min-h-0 overflow-hidden">
-            <DroneFleetPanel drones={sim.drones} />
-          </div>
-          <div className="flex-[3] min-h-0 overflow-hidden">
-            <DecisionPanel incident={sim.selectedIncident} />
+
+          <div className="flex-[4] min-h-0 overflow-hidden">
+             <ActiveMissionsPanel drones={sim.drones} onOpenFeed={setActiveLiveFeed} />
           </div>
         </div>
       </div>
 
+      {/* Decision Modal Overlay */}
+      {sim.selectedIncident && (
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center p-20 bg-black/80 backdrop-blur-3xl animate-in fade-in duration-500">
+           <div className="relative w-full max-w-4xl h-[80vh] flex flex-col bg-black border-4 border-white/10 rounded-[40px] overflow-hidden shadow-[0_60px_150px_rgba(0,0,0,1)]">
+              <div className="absolute top-8 right-8 z-50">
+                <button onClick={() => sim.setSelectedIncident(null)} className="p-4 bg-white/10 hover:bg-red-600 rounded-2xl transition-all text-white"><X size={24} /></button>
+              </div>
+              <DecisionPanel incident={sim.selectedIncident} />
+           </div>
+        </div>
+      )}
+
+      {/* Fleet Telemetry Modal */}
+      {showFleetModal && (
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center p-20 bg-black/80 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-500">
+           <div className="relative w-full max-w-4xl h-[80vh] flex flex-col bg-black border-4 border-white/10 rounded-[40px] overflow-hidden shadow-[0_60px_150px_rgba(0,0,0,1)]">
+              <div className="absolute top-8 right-8 z-50">
+                <button onClick={() => setShowFleetModal(false)} className="p-4 bg-white/10 hover:bg-red-600 rounded-2xl transition-all text-white"><X size={24} /></button>
+              </div>
+              <div className="p-10 border-b border-white/5 bg-white/5">
+                <h2 className="text-3xl font-black text-white italic uppercase tracking-[0.2em] font-mono">Operations: Fleet Telemetry</h2>
+                <div className="flex items-center gap-3 mt-2">
+                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                   <span className="text-[10px] font-mono text-white/30 uppercase tracking-[0.4em]">Signal Integrity: MIL-SPEC AES-256</span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                <DroneFleetPanel drones={sim.drones} />
+              </div>
+           </div>
+        </div>
+      )}
+
       {/* Audit log */}
-      <div className="h-32 p-2 pt-0 shrink-0">
+      <div className="h-48 p-2 pt-0 shrink-0">
         <AuditLog entries={sim.auditLog} />
       </div>
 

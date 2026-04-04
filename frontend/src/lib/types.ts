@@ -16,6 +16,8 @@ export type AuditAction =
   | 'HUMAN_CONFIRM'
   | 'HUMAN_REJECT'
   | 'MANUAL_OVERRIDE'
+  | 'MANUAL_DISPATCH'
+  | 'MANUAL_ABORT'
   | 'INCIDENT_RESOLVED'
   | 'LOW_BATTERY_FAILSAFE'
   | 'FLEET_REBALANCE'
@@ -43,6 +45,7 @@ export interface Drone {
   status: DroneStatus;
   battery: number;
   targetIncidentId?: string;
+  targetPosition?: GeoPoint;
   eta?: number;
 }
 

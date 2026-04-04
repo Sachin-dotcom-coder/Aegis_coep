@@ -64,25 +64,30 @@ export function useSimulation() {
     if (!running) return;
     const interval = setInterval(() => {
       setDrones(prev => prev.map(drone => {
-        if (drone.status === 'en_route' && drone.targetIncidentId) {
-          const incident = incidentsRef.current.find(i => i.id === drone.targetIncidentId);
-          if (!incident) return { ...drone, status: 'returning', targetIncidentId: undefined };
-          const newPos = moveDroneToward(drone, incident.position);
+        if (drone.status === 'en_route') {
+          const incident = drone.targetIncidentId ? incidentsRef.current.find(i => i.id === drone.targetIncidentId) : null;
+          const target = incident?.position || drone.targetPosition;
+          
+          if (!target) return { ...drone, status: 'returning', targetIncidentId: undefined, targetPosition: undefined };
+          
+          const newPos = moveDroneToward(drone, target);
           const newBattery = Math.max(0, drone.battery - 0.15);
-          const arrived = distance(newPos, incident.position) < 0.05;
+          const arrived = distance(newPos, target) < 0.05;
 
           if (newBattery < 10) {
-            addAudit(createAuditEntry('LOW_BATTERY_FAILSAFE', `Drone ${drone.id} recalled — battery critical`, incident.id, drone.id));
-            return { ...drone, position: newPos, battery: newBattery, status: 'recalled', targetIncidentId: undefined };
+            addAudit(createAuditEntry('LOW_BATTERY_FAILSAFE', `Drone ${drone.id} recalled — battery critical`, undefined, drone.id));
+            return { ...drone, position: newPos, battery: newBattery, status: 'recalled', targetIncidentId: undefined, targetPosition: undefined };
           }
 
           if (arrived) {
-            // Resolve after arrival
-            setTimeout(() => {
-              setIncidents(p => p.map(i => i.id === incident.id ? { ...i, status: 'resolved' } : i));
-              setDrones(p => p.map(d => d.id === drone.id ? { ...d, status: 'returning', targetIncidentId: undefined } : d));
-              addAudit(createAuditEntry('INCIDENT_RESOLVED', `Incident resolved by ${drone.id}`, incident.id, drone.id));
-            }, 5000);
+            if (incident) {
+              // Auto-resolve incident after arrival
+              setTimeout(() => {
+                setIncidents(p => p.map(i => i.id === incident.id ? { ...i, status: 'resolved' } : i));
+                setDrones(p => p.map(d => d.id === drone.id ? { ...d, status: 'returning', targetIncidentId: undefined } : d));
+                addAudit(createAuditEntry('INCIDENT_RESOLVED', `Incident resolved by ${drone.id}`, incident.id, drone.id));
+              }, 5000);
+            }
             return { ...drone, position: newPos, battery: newBattery, status: 'on_site' };
           }
           return { ...drone, position: newPos, battery: newBattery };
@@ -123,17 +128,35 @@ export function useSimulation() {
     setPendingConfirmation(null);
   }, [addAudit]);
 
-  const manualDispatch = useCallback((droneId: string, target: { lat: number; lng: number }) => {
-    setDrones(prev => prev.map(d => d.id === droneId ? { ...d, status: 'en_route', targetIncidentId: 'manual' } : d));
-    addAudit(createAuditEntry('MANUAL_OVERRIDE', `Manual dispatch of ${droneId}`, undefined, droneId));
-    // Return after 10s
-    setTimeout(() => {
-      setDrones(prev => prev.map(d => d.id === droneId ? { ...d, status: 'returning', targetIncidentId: undefined } : d));
-    }, 10000);
+  const manualDispatch = useCallback((targetLat: number, targetLng: number) => {
+    const idleDrones = dronesRef.current.filter(d => d.status === 'idle');
+    if (idleDrones.length === 0) return;
+    
+    // Select closest idle drone
+    const drone = selectDrone(idleDrones, { lat: targetLat, lng: targetLng });
+    if (drone) {
+      setDrones(prev => prev.map(d => d.id === drone.id ? { 
+        ...d, 
+        status: 'en_route', 
+        targetPosition: { lat: targetLat, lng: targetLng },
+        targetIncidentId: 'manual' 
+      } : d));
+      addAudit(createAuditEntry('MANUAL_DISPATCH', `Dispatching ${drone.id} to manual coordinates`, undefined, drone.id));
+    }
+  }, [addAudit]);
+
+  const abortDrone = useCallback((droneId: string) => {
+    setDrones(prev => prev.map(d => d.id === droneId ? { 
+      ...d, 
+      status: 'returning', 
+      targetIncidentId: undefined,
+      targetPosition: undefined 
+    } : d));
+    addAudit(createAuditEntry('MANUAL_ABORT', `Manual mission abort for ${droneId}`, undefined, droneId));
   }, [addAudit]);
 
   return {
     drones, incidents, auditLog, pendingConfirmation, selectedIncident,
-    setSelectedIncident, boot, confirmIncident, rejectIncident, manualDispatch, running,
+    setSelectedIncident, boot, confirmIncident, rejectIncident, manualDispatch, abortDrone, running,
   };
 }

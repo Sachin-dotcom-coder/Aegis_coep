@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import { Drone, Incident } from '@/lib/types';
 import { DISPATCH_ZONES } from '@/lib/simulation';
-import { Maximize2, Minimize2, X, Activity, Loader2, Scan } from 'lucide-react';
+import { Maximize2, Minimize2, X, Activity, Loader2, Scan, ShieldAlert, Search, Target, ArrowBigUp, ArrowBigDown, ArrowBigLeft, ArrowBigRight, Plus, Minus } from 'lucide-react';
 import React, { Suspense } from 'react';
 import { Drone3DView } from './Drone3DView';
 
@@ -15,9 +15,25 @@ interface Props {
   drones: Drone[];
   incidents: Incident[];
   onIncidentClick: (incident: Incident) => void;
+  onManualDispatch: (lat: number, lng: number) => void;
+  onAbort: (droneId: string) => void;
+  activeLiveFeed: string | null;
+  setActiveLiveFeed: (id: string | null) => void;
+  videoMaximized: boolean;
+  setVideoMaximized: (val: boolean) => void;
 }
 
-export function CityMap({ drones, incidents, onIncidentClick }: Props) {
+export function CityMap({ 
+  drones, 
+  incidents, 
+  onIncidentClick, 
+  onManualDispatch, 
+  onAbort,
+  activeLiveFeed,
+  setActiveLiveFeed,
+  videoMaximized,
+  setVideoMaximized
+}: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const droneMarkersRef = useRef<Map<string, L.Marker>>(new Map());
@@ -27,8 +43,9 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
   const [maximized, setMaximized] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const layerControlRef = useRef<L.Control.Layers | null>(null);
-  const [activeLiveFeed, setActiveLiveFeed] = useState<string | null>(null);
-  const [videoMaximized, setVideoMaximized] = useState(false);
+
+  const [videoZoom, setVideoZoom] = useState(1.5);
+  const [videoOffset, setVideoOffset] = useState({ x: 0, y: 0 });
 
   // Auto-detect drones on site for live feed alert
   const onSiteDrones = drones.filter(d => d.status === 'on_site');
@@ -100,7 +117,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
         });
 
         const marker = L.marker([zone.position.lat, zone.position.lng], { icon: baseIcon, zIndexOffset: 1000 }).addTo(dispatchGroup);
-        
+
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
           setSelectedUnit(idx + 1);
@@ -208,8 +225,8 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
   const mapContent = (
     <div
       className={`border border-border bg-black ${maximized
-          ? 'fixed inset-0 z-[10000] w-screen h-screen'
-          : 'relative h-full w-full rounded-lg overflow-hidden'
+        ? 'fixed inset-0 z-[10000] w-screen h-screen'
+        : 'relative h-full w-full rounded-lg overflow-hidden'
         }`}
     >
       <button
@@ -232,25 +249,18 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
 
       {/* Live Feed Deployment Alerts */}
       {onSiteDrones.length > 0 && !activeLiveFeed && (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1001] animate-in slide-in-from-top-10 duration-700">
-          <div className="flex items-center gap-4 bg-red-950/40 backdrop-blur-3xl border-2 border-red-500/40 px-10 py-5 rounded-3xl shadow-[0_40px_100px_rgba(255,0,0,0.4)]">
-            <div className="relative">
-              <Activity className="text-red-500 animate-pulse" size={40} />
-              <div className="absolute inset-0 bg-red-500 blur-2xl opacity-40 animate-pulse" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-2xl font-black tracking-[0.3em] text-white uppercase italic font-mono leading-none">On-Site Deployment Detected</span>
-              <span className="text-[12px] font-mono tracking-[0.45em] text-red-500/80 uppercase mt-2 font-bold">Drone {onSiteDrones[0].id.replace('drone_', 'D-')} reached objective</span>
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[1001] animate-in slide-in-from-top-10 duration-700">
+          <div className="bg-black/90 backdrop-blur-3xl border border-red-500/40 p-4 rounded-2xl flex items-center shadow-[0_0_50px_rgba(255,0,0,0.3)]">
+            <div className="flex flex-col border-r border-white/10 pr-6 mr-6 transition-all">
+              <span className="text-sm font-black tracking-widest text-white uppercase italic font-mono leading-none">Objective Reached</span>
+              <span className="text-[10px] font-mono tracking-[0.3em] text-red-500 uppercase mt-1 font-bold">Unit {onSiteDrones[0].id.replace('drone_', 'D-')}</span>
             </div>
             <button 
               onClick={() => setActiveLiveFeed(onSiteDrones[0].id)}
-              className="ml-10 group relative px-10 py-4 bg-red-600 hover:bg-white text-white hover:text-black transition-all duration-300 rounded-2xl shadow-[0_20px_60px_rgba(255,0,0,0.6)] overflow-hidden"
+              className="px-6 py-2 bg-red-600 hover:bg-white text-white hover:text-black transition-all duration-300 rounded-xl shadow-xl flex items-center gap-3 active:scale-95"
             >
-              <div className="relative z-10 flex items-center gap-4">
-                <Scan size={24} className="group-hover:animate-spin" />
-                <span className="text-lg font-black tracking-[0.2em] uppercase">Bridge Live Link</span>
-              </div>
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+              <Scan size={18} />
+              <span className="text-[10px] font-black tracking-[0.3em] uppercase underline decoration-white/20 underline-offset-4">Bridge Link</span>
             </button>
           </div>
         </div>
@@ -283,7 +293,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-mono text-white/60 uppercase tracking-[0.4em]">Signal Integrity:</span>
                     <div className="flex gap-1">
-                      {[0,1,2,3,4].map(i => <div key={i} className="w-2 h-6 bg-green-500 rounded-sm" />)}
+                      {[0, 1, 2, 3, 4].map(i => <div key={i} className="w-2 h-6 bg-green-500 rounded-sm" />)}
                     </div>
                   </div>
                 </div>
@@ -291,12 +301,41 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                   <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">Aegis Ground Optic Link [SECURE_ENCRYPTED]</span>
                 </div>
               </div>
-              
+
               <div className="absolute inset-0 border-[40px] border-black/10 opacity-40 pointer-events-none" style={{ background: 'repeating-linear-gradient(transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px)' }} />
             </div>
 
             {/* Close / Controls */}
+            {/* Close / Controls */}
             <div className="absolute top-8 right-8 z-30 flex items-center gap-4">
+              {/* Tactical Reset */}
+              <button 
+                onClick={() => {
+                  setVideoZoom(1.5);
+                  setVideoOffset({ x: 0, y: 0 });
+                }}
+                className="group flex items-center gap-3 bg-white/10 hover:bg-white px-6 py-3 rounded-2xl border border-white/20 backdrop-blur-xl transition-all shadow-2xl"
+              >
+                <Activity size={20} className="text-white group-hover:text-black" />
+                <span className="text-xs font-black tracking-widest uppercase text-white group-hover:text-black">Reset Gimbal</span>
+              </button>
+
+              <button 
+                onClick={() => {
+                  if (activeLiveFeed) {
+                    onAbort(activeLiveFeed);
+                    setActiveLiveFeed(null);
+                    setVideoMaximized(false);
+                    setVideoZoom(1.5); // Reset stats on close
+                    setVideoOffset({ x: 0, y: 0 });
+                  }
+                }}
+                className="group flex items-center gap-3 bg-red-600/20 hover:bg-red-600 px-6 py-3 rounded-2xl border border-red-500/40 backdrop-blur-xl transition-all shadow-2xl"
+              >
+                <ShieldAlert size={20} className="text-red-500 group-hover:text-white" />
+                <span className="text-xs font-black tracking-widest uppercase text-red-500 group-hover:text-white">Abort Mission</span>
+              </button>
+
               <button 
                 onClick={() => setVideoMaximized(!videoMaximized)}
                 className="p-3 bg-white/10 hover:bg-white hover:text-black rounded-2xl border border-white/10 backdrop-blur-xl transition-all shadow-2xl"
@@ -307,6 +346,8 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                 onClick={() => {
                   setActiveLiveFeed(null);
                   setVideoMaximized(false);
+                  setVideoZoom(1.5);
+                  setVideoOffset({ x: 0, y: 0 });
                 }}
                 className="p-3 bg-white/10 hover:bg-red-600 rounded-2xl border border-white/10 backdrop-blur-xl transition-all shadow-2xl"
               >
@@ -314,14 +355,49 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
               </button>
             </div>
 
-            <video 
-              autoPlay 
-              loop 
-              muted 
-              playsInline 
-              src="/video.mp4" 
-              className="w-full h-full object-cover opacity-80"
-            />
+            {/* Gimbal Controls HUD cluster - Bottom Right */}
+            <div className="absolute bottom-8 right-8 z-30 flex items-center gap-6 bg-black/60 backdrop-blur-2xl px-6 py-4 rounded-3xl border border-white/10 shadow-2xl animate-in fade-in slide-in-from-right-10 duration-700">
+               {/* 4-way Pan */}
+               <div className="grid grid-cols-3 gap-1">
+                  <div />
+                  <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigUp size={16} /></button>
+                  <div />
+                  <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x + (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigLeft size={16} /></button>
+                  <div className="bg-white/10 rounded-sm" />
+                  <button onClick={() => setVideoOffset(p => ({ ...p, x: p.x - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigRight size={16} /></button>
+                  <div />
+                  <button onClick={() => setVideoOffset(p => ({ ...p, y: p.y - (15 / videoZoom) }))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all"><ArrowBigDown size={16} /></button>
+                  <div />
+               </div>
+
+               <div className="h-12 w-[1px] bg-white/10" />
+
+               {/* Zoom Control */}
+               <div className="flex flex-col gap-2">
+                  <button onClick={() => setVideoZoom(p => Math.min(4, p + 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Plus size={16} /></button>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[8px] font-black text-white/30 tracking-widest uppercase">Zoom</span>
+                    <span className="text-sm font-black text-white font-mono">{videoZoom.toFixed(1)}x</span>
+                  </div>
+                  <button onClick={() => setVideoZoom(p => Math.max(1, p - 0.2))} className="p-2 bg-white/5 hover:bg-white hover:text-black rounded-lg transition-all shadow-lg"><Minus size={16} /></button>
+               </div>
+            </div>
+
+            <div className="w-full h-full overflow-hidden">
+               <video
+                 autoPlay
+                 loop
+                 muted
+                 playsInline
+                 src="/video.mp4"
+                 style={{ 
+                   transformOrigin: 'center',
+                   transform: `scale(${videoZoom}) translate(${videoOffset.x}px, ${videoOffset.y}px)`,
+                   transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                 }}
+                 className="w-full h-full object-cover opacity-80"
+               />
+            </div>
           </div>
         </div>
       )}
@@ -335,7 +411,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                 <Activity size={16} className="text-white/60 animate-pulse" />
                 <span className="text-xs font-black tracking-[0.2em] text-white uppercase font-mono">Tactical Unit D${selectedUnit} View</span>
               </div>
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedUnit(null);
@@ -345,7 +421,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="pt-12 w-full h-full relative z-10">
               <Suspense fallback={
                 <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-black/80">
