@@ -110,12 +110,17 @@ class Detector:
         self.impact_detector   = ImpactFlashDetector(confirm_frames=1)
         self.scene_cut_detector = SceneCutDetector()
 
-        # Per-person previous bounding-box centres for velocity tracking
         self._prev_centres: dict[int, tuple[float, float]] = {}
         self._frames_since_seen: dict[int, int] = {}
         self.FORGET_AFTER_FRAMES = 10
         self._incident_cooldown: dict[int, int] = {}
-        self.COOLDOWN_FRAMES = 30
+        self.COOLDOWN_FRAMES = 150  # 5 seconds at 30fps
+        # Add a global cooldown per incident type to prevent infinite API spam
+        self._type_cooldown: dict[str, int] = {
+            "fire": 0,
+            "road_accident": 0,
+            "gun_fired": 0
+        }
         self._incident_counter = 0
         self._frame_count = 0
         self._scene_cut_count = 0
@@ -358,8 +363,13 @@ class Detector:
 
         incidents: list[dict] = []
 
+        # Decrement global type cooldowns
+        for t in self._type_cooldown:
+            if self._type_cooldown[t] > 0:
+                self._type_cooldown[t] -= 1
+
         # ══════════════════════════════════════════════════════════════════════
-        #  1. POSE MODEL — Fall detection
+        #  1. POSE MODEL — Fall detection (Omitted for brevity - already has per-person cooldown)
         # ══════════════════════════════════════════════════════════════════════
         results   = self.model(frame, imgsz=self.imgsz, verbose=False)
         res       = results[0]
@@ -490,15 +500,19 @@ class Detector:
             ev = fire_events[0]   # use first (largest could be added later)
             fire_area = ev.get("area", 1000)
             fire_conf = min(0.5 + (fire_area / 20000), 0.95)
-            incidents.append(self._make_incident(
-                "fire", ev["cx"], ev["cy"],
-                yolo_conf=fire_conf,       # dynamic score based on fire area
-                anomaly_score=anomaly_score,
-                people_in_frame=people_in_frame,
-                event_area=fire_area,  # Pass fire area for severity calculation
-            ))
+            
             cv2.putText(annotated, "🔥 FIRE CONFIRMED", (10, 60),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 60, 255), 2)
+                        
+            if self._type_cooldown["fire"] <= 0:
+                incidents.append(self._make_incident(
+                    "fire", ev["cx"], ev["cy"],
+                    yolo_conf=fire_conf,       # dynamic score based on fire area
+                    anomaly_score=anomaly_score,
+                    people_in_frame=people_in_frame,
+                    event_area=fire_area,  # Pass fire area for severity calculation
+                ))
+                self._type_cooldown["fire"] = 150  # 5 seconds cooldown
 
         # ══════════════════════════════════════════════════════════════════════
         #  4. ACCIDENT DETECTION
@@ -544,17 +558,20 @@ class Detector:
             if rotation_detected:
                 print(f"    🚨 ROTATION DETECTED - Boosting severity +40%")
             
-            incidents.append(self._make_incident(
-                "road_accident", ev["cx"], ev["cy"],
-                yolo_conf=0.80,
-                anomaly_score=anomaly_score,
-                people_in_frame=people_in_frame,
-                event_area=accident_area,
-                rotation_detected=rotation_detected,
-                vehicle_speeds=vehicle_speeds,
-            ))
             cv2.putText(annotated, "ACCIDENT CONFIRMED", (10, 90),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2)
+                        
+            if self._type_cooldown["road_accident"] <= 0:
+                incidents.append(self._make_incident(
+                    "road_accident", ev["cx"], ev["cy"],
+                    yolo_conf=0.80,
+                    anomaly_score=anomaly_score,
+                    people_in_frame=people_in_frame,
+                    event_area=accident_area,
+                    rotation_detected=rotation_detected,
+                    vehicle_speeds=vehicle_speeds,
+                ))
+                self._type_cooldown["road_accident"] = 150 # 5 sec cooldown
 
         # ══════════════════════════════════════════════════════════════════════
         #  5. IMPACT FLASH DETECTION (catches dust/smoke explosions)
@@ -576,18 +593,21 @@ class Detector:
                         rotation_detected = True
                     vehicle_speeds.append(v.get("speed", 0.0))
                 
-                incidents.append(self._make_incident(
-                    "road_accident",
-                    flash_event["cx"], flash_event["cy"],
-                    yolo_conf       = 0.82,
-                    anomaly_score   = anomaly_score,
-                    people_in_frame = people_in_frame,
-                    event_area      = flash_area,
-                    rotation_detected = rotation_detected,
-                    vehicle_speeds = vehicle_speeds,
-                ))
                 cv2.putText(annotated, "IMPACT FLASH DETECTED", (10, 120),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                            
+                if self._type_cooldown["road_accident"] <= 0:
+                    incidents.append(self._make_incident(
+                        "road_accident",
+                        flash_event["cx"], flash_event["cy"],
+                        yolo_conf       = 0.82,
+                        anomaly_score   = anomaly_score,
+                        people_in_frame = people_in_frame,
+                        event_area      = flash_area,
+                        rotation_detected = rotation_detected,
+                        vehicle_speeds = vehicle_speeds,
+                    ))
+                    self._type_cooldown["road_accident"] = 150 # 5 sec cooldown
 
         # ══════════════════════════════════════════════════════════════════════
         #  POST INCIDENTS TO BACKEND DATABASE

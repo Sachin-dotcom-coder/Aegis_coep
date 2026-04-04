@@ -55,7 +55,6 @@ class Drone:
         self.battery = 100.0
         self.state = DroneState.IDLE
         self.mission_dist = 0.0
-        self.target = None
         self.target = (start_lat, start_lng)
         self.assigned_incident = None
         self.assigned_incident_obj = None
@@ -220,8 +219,10 @@ class DroneFleet:
 
     def sort_pending_queue(self):
         def get_priority(incident):
-            best_drone = self.best_drone_for(incident['lat'], incident['lng'])
-            dist = math.sqrt((best_drone.lat - incident['lat'])**2 + (best_drone.lng - incident['lng'])**2) if best_drone else 1.0
+            inc_lat = incident.get('lat', incident.get('latitude', 0.0))
+            inc_lng = incident.get('lng', incident.get('longitude', 0.0))
+            best_drone = self.best_drone_for(inc_lat, inc_lng)
+            dist = math.sqrt((best_drone.lat - inc_lat)**2 + (best_drone.lng - inc_lng)**2) if best_drone else 1.0
             return calculate_dynamic_priority(incident, dist)
         self.pending_queue.sort(key=get_priority, reverse=True)
 
@@ -271,20 +272,41 @@ class DroneFleet:
         for incident in list(self.pending_queue):
             inc_priority = incident.get('priority_score', 0)
             inc_id = incident.get('id', 'N/A')
-            best_drone = self.best_drone_for(incident['lat'], incident['lng'])
+            inc_lat = incident.get('lat', incident.get('latitude', 0.0))
+            inc_lng = incident.get('lng', incident.get('longitude', 0.0))
+            
+            # Prevent swarm dispatch for concurrently created duplicate incidents
+            already_covered = False
+            for d in self.drones.values():
+                if d.state in (DroneState.EN_ROUTE, DroneState.ON_SCENE) and hasattr(d, 'target') and d.target:
+                    coverage_dist = math.sqrt((d.target[0] - inc_lat)**2 + (d.target[1] - inc_lng)**2)
+                    if coverage_dist < 0.002:
+                        already_covered = True
+                        break
+            
+            if already_covered:
+                print(f"🛑 SWARM PREVENTED: Incident {inc_id} covered by active drone. Dropping.")
+                self.pending_queue.remove(incident)
+                async def mark_merged(i_id=inc_id):
+                    from app.db.mongo import get_db
+                    db = await get_db()
+                    if db is not None:
+                        await db.incidents.update_one({"id": i_id}, {"$set": {"status": "merged"}})
+                asyncio.create_task(mark_merged())
+                continue
+
+            best_drone = self.best_drone_for(inc_lat, inc_lng)
             if best_drone:
                 if best_drone.state == DroneState.EN_ROUTE:
                     if inc_priority < best_drone.assigned_priority + 2: continue 
                     print(f"🚀 MISSION HIJACK: Drone {best_drone.id} diverted to {inc_id}")
-                    old_inc = best_drone.recall(None)
-                    if old_inc: self.pending_queue.append(old_inc)
                 elif best_drone.state == DroneState.RECALLED:
                     print(f"🔄 MISSION DIVERT: Homebound {best_drone.id} intercepted for {inc_id}!")
                 else:
                     print(f"🚀 MISSION START: Drone {best_drone.id} dispatched to {inc_id}")
-                dist = get_nfz_aware_distance((best_drone.lat, best_drone.lng), (incident['lat'], incident['lng']))
+                dist = get_nfz_aware_distance((best_drone.lat, best_drone.lng), (inc_lat, inc_lng))
                 eta = int(dist / DRONE_SPEED_LATLNG)
-                best_drone.dispatch(incident['lat'], incident['lng'], incident, inc_priority)
+                best_drone.dispatch(inc_lat, inc_lng, incident, inc_priority)
                 # Ensure the mission_dist is correctly set in dispatch as the awareness dist
                 best_drone.mission_dist = dist
                 self.active_mission_ids.add(inc_id)

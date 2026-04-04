@@ -76,13 +76,12 @@ export const ActiveMissionsPanel = ({ drones, onOpenFeed }: Props) => {
                 <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-1000 ${drone.status === 'on_site' ? 'w-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.5)]' :
-                        drone.status === 'charging' ? `bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]` :
+                        drone.status === 'charging' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
                           'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.5)]'
                       }`}
                     style={{ width: `${drone.status === 'on_site' ? 100 : (drone.status === 'charging' ? (drone.charging_progress || 0) : (drone.path_progress || 0))}%` }}
                   />
-                </div>
-              </div>
+                </div>              </div>
             </div>
           ))
         )}

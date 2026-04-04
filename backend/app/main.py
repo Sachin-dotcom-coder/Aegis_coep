@@ -47,11 +47,14 @@ async def lifespan(app: FastAPI):
     from app.db.mongo import get_db
     db = await get_db()
     if db is not None:
-        cursor = db.incidents.find({"status": {"$in": ["queued", "in_progress", "pending", "auto"]}})
+        cursor = db.incidents.find({"status": {"$in": ["queued", "in_progress", "pending", "auto", "en_route"]}})
         reloaded_count = 0
         async for doc in cursor:
             doc.pop("_id", None)
-            if doc["status"] in ["queued", "in_progress"]:
+            if doc["status"] in ["queued", "in_progress", "auto", "en_route"]:
+                if doc["status"] == "en_route":
+                    await db.incidents.update_one({"id": doc["id"]}, {"$set": {"status": "auto", "assigned_drone": None}})
+                    doc["status"] = "auto"
                 fleet.pending_queue.append(doc)
             reloaded_count += 1
         print(f"🔄 Reloaded {reloaded_count} incidents from MongoDB.")

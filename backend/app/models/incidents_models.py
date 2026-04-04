@@ -19,9 +19,18 @@ class Incident(BaseModel):
     people_in_frame: int             # actual count YOLO detected right now
     
     # Location
-    lat: float
-    lng: float
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.lat is None and self.latitude is not None:
+            self.lat = self.latitude
+        if self.lng is None and self.longitude is not None:
+            self.lng = self.longitude
+            
     # Confidence + time
     detect_confidence: float         # 0.0–1.0, raw from YOLO
     timestamp: datetime
