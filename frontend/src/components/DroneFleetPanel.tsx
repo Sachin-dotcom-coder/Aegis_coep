@@ -37,51 +37,74 @@ export function DroneFleetPanel({ drones }: Props) {
   const activeDrones = drones.filter(d => d.status !== 'idle').length;
 
   return (
-    <div className={`glass-panel p-3 flex flex-col ${expanded ? 'fixed inset-4 z-40' : 'h-full'}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <Navigation size={13} className="text-foreground/60" />
-        <h3 className="text-xs font-semibold tracking-wider text-foreground/80 uppercase font-sans">Drone Fleet</h3>
-        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-mono">
-          {activeDrones} active / {drones.length}
+    <div className={`glass-panel transition-all duration-300 flex flex-col ${
+      expanded ? 'fixed inset-0 z-[20000] bg-black p-8' : 'h-full p-3 bg-black'
+    }`}>
+      <div className="flex items-center gap-3 mb-6">
+        <Navigation size={expanded ? 24 : 13} className="text-white/60" />
+        <h3 className={`${expanded ? 'text-2xl' : 'text-xs'} font-semibold tracking-widest text-white uppercase font-sans`}>
+          Drone Fleet Operations
+        </h3>
+        <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[10px] px-2 py-0.5'} ml-auto rounded-full bg-white/10 text-white font-mono`}>
+          {activeDrones} ACTIVE / {drones.length} TOTAL
         </span>
-        <button onClick={() => setExpanded(!expanded)} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors">
-          {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        <button 
+          onClick={() => setExpanded(!expanded)} 
+          className="p-2 rounded-lg bg-white/5 text-white hover:bg-white/10 transition-all hover:scale-110"
+        >
+          {expanded ? <Minimize2 size={24} /> : <Maximize2 size={12} />}
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1">
+
+      <div className={`flex-1 overflow-y-auto scrollbar-thin ${expanded ? 'grid grid-cols-2 gap-8' : 'space-y-1'}`}>
         {grouped.map(({ zone, idx, drones: zoneDrones }) => {
-          const isOpen = expandedZone === zone.id;
+          const isOpen = expandedZone === zone.id || expanded;
           const activeCount = zoneDrones.filter(d => d.status !== 'idle').length;
           return (
-            <div key={zone.id}>
+            <div key={zone.id} className={expanded ? 'border border-white/10 p-6 rounded-xl bg-white/5' : ''}>
               <button
-                onClick={() => setExpandedZone(isOpen ? null : zone.id)}
-                className="w-full flex items-center gap-2 py-2 px-2.5 rounded-md hover:bg-secondary/50 transition-colors text-left"
+                onClick={() => !expanded && setExpandedZone(isOpen ? null : zone.id)}
+                className={`w-full flex items-center gap-3 rounded-md transition-colors text-left ${
+                  expanded ? 'mb-6 cursor-default' : 'py-2 px-2.5 hover:bg-white/10'
+                }`}
               >
-                {isOpen ? <ChevronDown size={12} className="text-muted-foreground" /> : <ChevronRight size={12} className="text-muted-foreground" />}
-                <span className="text-[11px] font-medium text-foreground/90">Dispatch Unit {idx}</span>
-                <span className="text-[9px] text-muted-foreground font-mono ml-1">{zone.name}</span>
-                <span className="ml-auto text-[9px] font-mono text-muted-foreground">
-                  {activeCount > 0 ? `${activeCount} active` : 'all idle'}
+                {!expanded && (isOpen ? <ChevronDown size={14} className="text-white/60" /> : <ChevronRight size={14} className="text-white/60" />)}
+                <span className={`${expanded ? 'text-xl' : 'text-[11px]'} font-bold text-white tracking-wider`}>
+                  UNIT-{idx.toString().padStart(2, '0')}
+                </span>
+                <span className={`${expanded ? 'text-sm' : 'text-[9px]'} text-white/40 font-mono ml-2 uppercase tracking-wide truncate`}>
+                  {zone.name}
+                </span>
+                <span className={`ml-auto font-mono text-white/60 ${expanded ? 'text-sm' : 'text-[9px]'}`}>
+                  {activeCount > 0 ? `${activeCount} ACTIVE` : 'READY'}
                 </span>
               </button>
+              
               {isOpen && (
-                <div className="ml-5 space-y-1 pb-1">
+                <div className={`${expanded ? 'space-y-3' : 'ml-5 space-y-1 pb-1'}`}>
                   {zoneDrones.map(drone => {
                     const st = statusLabel(drone.status);
                     return (
-                      <div key={drone.id} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-secondary/30">
-                        <span className="text-[10px] font-mono text-foreground/60 w-16 truncate">{drone.id.replace('drone_', 'D-')}</span>
-                        <span className={`text-[8px] font-medium px-1.5 py-0.5 rounded bg-secondary ${st.cls}`}>{st.text}</span>
-                        <div className="ml-auto flex items-center gap-1.5 w-16">
-                          <Battery size={10} className={drone.battery < 20 ? 'text-foreground/40' : 'text-muted-foreground'} />
-                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div key={drone.id} className={`flex items-center gap-4 rounded-md bg-white/5 ${expanded ? 'p-4' : 'py-1.5 px-2'}`}>
+                        <span className={`${expanded ? 'text-sm' : 'text-[10px]'} font-mono text-white/60 w-20 truncate`}>
+                          {drone.id.replace('drone_', 'D-')}
+                        </span>
+                        <span className={`${expanded ? 'text-[10px] px-3 py-1' : 'text-[8px] px-1.5 py-0.5'} font-bold rounded bg-white/10 text-white tracking-widest`}>
+                          {st.text}
+                        </span>
+                        <div className="ml-auto flex items-center gap-3 flex-1 max-w-[200px]">
+                          <Battery size={expanded ? 18 : 10} className={drone.battery < 20 ? 'text-red-500 animate-pulse' : 'text-white/40'} />
+                          <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-1000 ${batteryColor(drone.battery)}`}
+                              className={`h-full rounded-full transition-all duration-1000 ${
+                                drone.battery < 20 ? 'bg-red-500' : 'bg-white/60'
+                              }`}
                               style={{ width: `${drone.battery}%` }}
                             />
                           </div>
-                          <span className="text-[9px] font-mono text-muted-foreground w-7 text-right">{drone.battery.toFixed(0)}%</span>
+                          <span className={`${expanded ? 'text-sm' : 'text-[9px]'} font-mono text-white/80 w-10 text-right`}>
+                            {drone.battery.toFixed(0)}%
+                          </span>
                         </div>
                       </div>
                     );
