@@ -250,7 +250,7 @@ class Detector:
                        people_in_frame: int, event_area: float = 1000.0,
                        rotation_detected: bool = False, vehicle_speeds: list = None) -> dict:
         """Build a complete incident payload dict from detected values."""
-        lat, lng, zone = pixel_to_latlon(cx, cy)
+        lat, lng, zone = pixel_to_latlon(cx, cy, camera_id=self.camera_id)
         detect_confidence = blend_confidence(
             yolo_conf=yolo_conf,
             zone_accident_frequency=zone.accident_frequency,
