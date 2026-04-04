@@ -82,10 +82,10 @@ class Drone:
         self.assigned_priority = 0.0
         return return_incident
 
-    def tick(self):
+    def tick(self, other_drones=None):
         events = []
         if self.state in (DroneState.EN_ROUTE, DroneState.RECALLED):
-            self._move_toward(self.target)
+            self._move_toward(self.target, other_drones or [])
             self.battery = max(0.0, self.battery - BATTERY_DRAIN_RATE)
             if self._arrived():
                 if self.state == DroneState.EN_ROUTE:
@@ -110,7 +110,7 @@ class Drone:
                 self.state = DroneState.IDLE
         return events
 
-    def _move_toward(self, target):
+    def _move_toward(self, target, other_drones):
         if not target: return
         dlat = target[0] - self.lat
         dlng = target[1] - self.lng
@@ -123,7 +123,15 @@ class Drone:
         next_lat = self.lat + (dlat / dist) * move_dist
         next_lng = self.lng + (dlng / dist) * move_dist
 
-        if is_in_nfz(next_lat, next_lng):
+        collision_risk = False
+        for od in other_drones:
+            if od.id == self.id: continue
+            # Maintain 50m (0.0005 deg) exclusion boundary between airborne drones
+            if math.sqrt((next_lat - od.lat)**2 + (next_lng - od.lng)**2) < 0.0005:
+                collision_risk = True
+                break
+
+        if is_in_nfz(next_lat, next_lng) or collision_risk:
             for angle in [45, -45, 90, -90, 135, -135]:
                 rad = math.radians(angle)
                 rot_lat = (dlat * math.cos(rad) - dlng * math.sin(rad))
@@ -131,10 +139,19 @@ class Drone:
                 mag = math.sqrt(rot_lat**2 + rot_lng**2)
                 try_lat = self.lat + (rot_lat / mag) * move_dist
                 try_lng = self.lng + (rot_lng / mag) * move_dist
+                
                 if not is_in_nfz(try_lat, try_lng):
-                    self.lat, self.lng = try_lat, try_lng
-                    return
+                    dodge_collide = False
+                    for od in other_drones:
+                        if od.id != self.id and math.sqrt((try_lat - od.lat)**2 + (try_lng - od.lng)**2) < 0.0005:
+                            dodge_collide = True
+                            break
+                    if not dodge_collide:
+                        self.lat, self.lng = try_lat, try_lng
+                        return
+            # Blocked: hover in place
             return
+            
         self.lat, self.lng = next_lat, next_lng
 
     def _arrived(self):
@@ -211,7 +228,8 @@ class DroneFleet:
                       and self.has_enough_battery(d, lat, lng)]
         if not candidates: return None
         def score_drone(d):
-            dist_sq = (d.lat - lat)**2 + (d.lng - lng)**2
+            nfz_dist = get_nfz_aware_distance((d.lat, d.lng), (lat, lng))
+            dist_sq = nfz_dist**2
             penalty = 0.006 if d.state == DroneState.EN_ROUTE else 0.0
             battery_bias = (100.0 - d.battery) * 0.0001
             return dist_sq + penalty + battery_bias
@@ -251,7 +269,7 @@ class DroneFleet:
                     if drone.state == DroneState.IDLE and drone.assigned_incident is None and not self._is_at_station(drone):
                         print(f"📡 UNIT RECOVERY: Drone {drone.id} returning to base.")
                         self.trigger_recall(drone)
-                    events = drone.tick()
+                    events = drone.tick(other_drones=list(self.drones.values()))
                     if events:
                         for event_name, inc_id in events:
                             if event_name == "DRONE_TASK_COMPLETE" and inc_id in self.active_mission_ids:
