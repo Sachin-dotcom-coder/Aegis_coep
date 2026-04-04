@@ -31,3 +31,4 @@ class Incident(BaseModel):
     priority_score: Optional[float] = None
     status: str = "pending"
     assigned_drone: Optional[str] = None
+    eta_seconds: Optional[float] = None

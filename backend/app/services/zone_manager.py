@@ -27,11 +27,13 @@ async def dedup_or_merge(db, incident):
             # Match found within 200 meters! Merge them.
             # Boost decision confidence and flag with multi_cam_bonus for priority bumps
             new_conf = min(1.0, existing.get('decision_confidence', 0.5) * 1.25)
+            new_priority = max(incident.priority_score, existing.get('priority_score', 0))
             await db.incidents.update_one(
                 {"_id": existing["_id"]},
                 {"$set": {
                     "decision_confidence": new_conf, 
                     "multi_cam_bonus": 1.5,
+                    "priority_score": new_priority,
                     "people_in_frame": max(incident.people_in_frame, existing.get('people_in_frame', 0))
                 }}
             )

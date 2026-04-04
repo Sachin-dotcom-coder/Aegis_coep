@@ -22,6 +22,9 @@ async def log_audit_action(action: str, incident_id: str, drone_id: str = "N/A")
     
     db = await get_db()
     if db is not None:
+        if action == "DRONE_ON_SCENE":
+            await db.incidents.update_one({"id": incident_id}, {"$set": {"status": "in_progress"}})
+            
         await db.audit.insert_one({
             "timestamp": datetime.datetime.utcnow(),
             "action": action,
@@ -34,6 +37,20 @@ async def log_audit_action(action: str, incident_id: str, drone_id: str = "N/A")
 async def lifespan(app: FastAPI):
     # Startup Events
     await connect_mongo()
+    
+    # Reload queue persistence from MongoDB
+    from app.db.mongo import get_db
+    db = await get_db()
+    if db is not None:
+        cursor = db.incidents.find({"status": {"$in": ["queued", "in_progress", "pending", "auto"]}})
+        reloaded_count = 0
+        async for doc in cursor:
+            doc.pop("_id", None)
+            if doc["status"] in ["queued", "in_progress"]:
+                fleet.pending_queue.append(doc)
+            reloaded_count += 1
+        print(f"🔄 Reloaded {reloaded_count} incidents from MongoDB.")
+    
     app.state.drone_task = asyncio.create_task(fleet.run(broadcast, log_audit_action))
     yield
     # Shutdown Events
@@ -51,6 +68,8 @@ app.add_middleware(
 
 # Connect HTTP routers
 app.include_router(incidents_routes.router)
+from app.routes import drones_routes
+app.include_router(drones_routes.router)
 
 # Connect WebSocket router
 app.include_router(ws_router)
