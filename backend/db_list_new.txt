@@ -1,3 +1,0 @@
-﻿Databases found: ['NEW_DATABASE_NAME', 'admin', 'aegisai', 'config', 'finnov', 'local', 'prism', 'school']
-Collections in 'aegisai': ['incidents', 'audit']
-Total incidents found: 7
