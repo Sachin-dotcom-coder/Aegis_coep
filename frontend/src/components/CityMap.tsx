@@ -92,6 +92,16 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
       fitMapToPune();
     });
 
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize({ animate: false });
+      }
+    });
+    
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     const handleWindowResize = () => {
       map.invalidateSize({ pan: false });
       fitMapToPune();
@@ -101,6 +111,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
 
     return () => {
       window.removeEventListener('resize', handleWindowResize);
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
       dispatchMarkersRef.current = null;
@@ -114,7 +125,7 @@ export function CityMap({ drones, incidents, onIncidentClick }: Props) {
     const timer = window.setTimeout(() => {
       map.invalidateSize({ pan: false });
       fitMapToPune();
-    }, 180);
+    }, 400);
 
     return () => window.clearTimeout(timer);
   }, [fitMapToPune, maximized]);
