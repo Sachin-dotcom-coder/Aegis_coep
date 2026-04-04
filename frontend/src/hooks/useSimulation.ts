@@ -1,162 +1,237 @@
+/**
+ * useSimulation – Live backend hook
+ *
+ * Data flow:
+ *  • Incidents:  GET /incidents/ on boot + polled every 5 s
+ *  • Drones:     WebSocket /ws/drones (1-s push from backend fleet loop)
+ *                + GET /drones/ on boot (before WS connects)
+ *  • Audit log:  GET /audits/ on boot + polled every 8 s
+ *
+ * Actions (approve/reject/manual deploy/recall) all go to the REST API; no
+ * local state mutation – next poll cycle automatically reflects the result.
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Drone, Incident, AuditEntry } from '@/lib/types';
-import {
-  DISPATCH_ZONES,
-  initDrones,
-  spawnIncident,
-  selectDrone,
-  createAuditEntry,
-  moveDroneToward,
-  distance,
-} from '@/lib/simulation';
+import { api, WS_URL, mapDrone, mapIncident, mapAudit } from '@/lib/api';
+import type { BackendDrone } from '@/lib/api';
 
 export function useSimulation() {
-  const [drones, setDrones] = useState<Drone[]>([]);
+  const [drones,    setDrones]    = useState<Drone[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [auditLog,  setAuditLog]  = useState<AuditEntry[]>([]);
+  const [running,   setRunning]   = useState(false);
+
+  // Incident the operator has clicked on → opens DecisionPanel
+  const [selectedIncident,   setSelectedIncident]   = useState<Incident | null>(null);
+  // Incident needing human confirmation (status === 'pending')
   const [pendingConfirmation, setPendingConfirmation] = useState<Incident | null>(null);
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
-  const [running, setRunning] = useState(false);
-  const dronesRef = useRef(drones);
-  const incidentsRef = useRef(incidents);
 
-  useEffect(() => { dronesRef.current = drones; }, [drones]);
-  useEffect(() => { incidentsRef.current = incidents; }, [incidents]);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  const addAudit = useCallback((entry: AuditEntry) => {
-    setAuditLog(prev => [entry, ...prev].slice(0, 100));
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  const addAuditEntry = useCallback((entry: AuditEntry) => {
+    setAuditLog(prev => [entry, ...prev].slice(0, 150));
   }, []);
 
-  const boot = useCallback(() => {
-    const d = initDrones();
-    setDrones(d);
-    setIncidents([]);
-    setAuditLog([createAuditEntry('SYSTEM_BOOT', 'Aegis Shield v2.0 initialized — 15 drones online')]);
-    setRunning(true);
+  // ── Boot: load initial state from backend ─────────────────────────────────
+
+  const boot = useCallback(async () => {
+    try {
+      // Parallel initial loads
+      const [initDrones, initIncidents, initAudits] = await Promise.all([
+        api.getDrones(),
+        api.getIncidents(),
+        api.getAuditLog(100),
+      ]);
+
+      setDrones(initDrones);
+      setIncidents(initIncidents);
+      setAuditLog(initAudits);
+
+      // Set pending confirmation if any incident needs human review
+      const pending = initIncidents.find(i => i.status === 'pending');
+      if (pending) setPendingConfirmation(pending);
+
+      setRunning(true);
+    } catch (err) {
+      console.error('❌ Aegis boot failed:', err);
+      // Fallback: show system boot entry so UI doesn't look empty
+      setAuditLog([{
+        id: 'boot_fail',
+        timestamp: Date.now(),
+        action: 'SYSTEM_BOOT',
+        details: 'Backend unreachable – running in offline mode',
+      }]);
+      setRunning(true);
+    }
   }, []);
 
-  // Spawn incidents every 30-40s
+  // ── WebSocket: live drone telemetry ──────────────────────────────────────
+
   useEffect(() => {
     if (!running) return;
-    const spawnDelay = 30000 + Math.random() * 10000;
-    const interval = setInterval(() => {
-      const { incident } = spawnIncident(DISPATCH_ZONES, dronesRef.current);
-      setIncidents(prev => [incident, ...prev].slice(0, 50));
-      addAudit(createAuditEntry('AI_DETECTED', `${incident.type.replace(/_/g, ' ')} detected at ${incident.cameraSource} (conf: ${incident.detectionConfidence})`, incident.id, undefined, incident.detectionConfidence));
 
-      if (incident.status === 'queued') {
-        // Auto dispatch
-        const drone = selectDrone(dronesRef.current, incident.position);
-        if (drone) {
-          setDrones(prev => prev.map(d => d.id === drone.id ? { ...d, status: 'en_route', targetIncidentId: incident.id } : d));
-          setIncidents(prev => prev.map(i => i.id === incident.id ? { ...i, status: 'dispatched', assignedDroneId: drone.id } : i));
-          addAudit(createAuditEntry('AUTO_DISPATCH', `Drone ${drone.id} auto-dispatched (decision conf: ${incident.decisionConfidence})`, incident.id, drone.id, incident.decisionConfidence));
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('🔌 WS connected to Aegis backend');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const raw: BackendDrone[] = JSON.parse(event.data);
+          setDrones(raw.map(mapDrone));
+        } catch (e) {
+          console.warn('WS parse error', e);
         }
-      } else if (incident.status === 'pending_confirmation') {
-        setPendingConfirmation(prev => prev ?? incident);
+      };
+
+      ws.onclose = () => {
+        console.warn('⚠️ WS disconnected – reconnecting in 3 s');
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (e) => {
+        console.error('WS error', e);
+        ws.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      wsRef.current?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [running]);
+
+  // ── Poll incidents every 5 s ──────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!running) return;
+
+    const tick = async () => {
+      try {
+        const fresh = await api.getIncidents();
+        setIncidents(fresh);
+
+        // Surface new 'pending' incidents for confirmation modal
+        const pending = fresh.find(i => i.status === 'pending');
+        setPendingConfirmation(prev => {
+          // Only update if it's a NEW pending incident we haven't shown yet
+          if (pending && (!prev || prev.id !== pending.id)) return pending;
+          // If the previous pending was resolved/approved, clear it
+          if (prev && !fresh.find(i => i.id === prev.id && i.status === 'pending')) return null;
+          return prev;
+        });
+
+        // Keep selectedIncident in sync (status may have changed)
+        setSelectedIncident(prev => {
+          if (!prev) return null;
+          return fresh.find(i => i.id === prev.id) ?? null;
+        });
+      } catch (err) {
+        console.warn('Incident poll failed:', err);
       }
-    }, spawnDelay);
-    return () => clearInterval(interval);
-  }, [running, addAudit]);
+    };
 
-  // Move drones & drain battery
+    tick(); // immediate first tick
+    const id = setInterval(tick, 5000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // ── Poll audit log every 8 s ──────────────────────────────────────────────
+
   useEffect(() => {
     if (!running) return;
-    const interval = setInterval(() => {
-      setDrones(prev => prev.map(drone => {
-        if (drone.status === 'en_route') {
-          const incident = drone.targetIncidentId ? incidentsRef.current.find(i => i.id === drone.targetIncidentId) : null;
-          const target = incident?.position || drone.targetPosition;
-          
-          if (!target) return { ...drone, status: 'returning', targetIncidentId: undefined, targetPosition: undefined };
-          
-          const newPos = moveDroneToward(drone, target);
-          const newBattery = Math.max(0, drone.battery - 0.15);
-          const arrived = distance(newPos, target) < 0.05;
 
-          if (newBattery < 10) {
-            addAudit(createAuditEntry('LOW_BATTERY_FAILSAFE', `Drone ${drone.id} recalled — battery critical`, undefined, drone.id));
-            return { ...drone, position: newPos, battery: newBattery, status: 'recalled', targetIncidentId: undefined, targetPosition: undefined };
-          }
+    const tick = async () => {
+      try {
+        const fresh = await api.getAuditLog(100);
+        setAuditLog(fresh);
+      } catch (err) {
+        console.warn('Audit poll failed:', err);
+      }
+    };
 
-          if (arrived) {
-            if (incident) {
-              // Auto-resolve incident after arrival
-              setTimeout(() => {
-                setIncidents(p => p.map(i => i.id === incident.id ? { ...i, status: 'resolved' } : i));
-                setDrones(p => p.map(d => d.id === drone.id ? { ...d, status: 'returning', targetIncidentId: undefined } : d));
-                addAudit(createAuditEntry('INCIDENT_RESOLVED', `Incident resolved by ${drone.id}`, incident.id, drone.id));
-              }, 5000);
-            }
-            return { ...drone, position: newPos, battery: newBattery, status: 'on_site' };
-          }
-          return { ...drone, position: newPos, battery: newBattery };
-        }
+    const id = setInterval(tick, 8000);
+    return () => clearInterval(id);
+  }, [running]);
 
-        if (drone.status === 'returning' || drone.status === 'recalled') {
-          const newPos = moveDroneToward(drone, drone.basePosition);
-          const newBattery = Math.max(0, drone.battery - 0.1);
-          const home = distance(newPos, drone.basePosition) < 0.05;
-          if (home) return { ...drone, position: drone.basePosition, battery: Math.min(100, newBattery + 0.5), status: 'idle' };
-          return { ...drone, position: newPos, battery: newBattery };
-        }
+  // ── Actions ───────────────────────────────────────────────────────────────
 
-        // Idle drones recharge
-        if (drone.status === 'idle' && drone.battery < 100) {
-          return { ...drone, battery: Math.min(100, drone.battery + 0.3) };
-        }
-
-        return drone;
-      }));
-    }, 500);
-    return () => clearInterval(interval);
-  }, [running, addAudit]);
-
-  const confirmIncident = useCallback((incidentId: string) => {
-    const drone = selectDrone(dronesRef.current, incidentsRef.current.find(i => i.id === incidentId)?.position ?? { lat: 0, lng: 0 });
-    if (drone) {
-      setDrones(prev => prev.map(d => d.id === drone.id ? { ...d, status: 'en_route', targetIncidentId: incidentId } : d));
-      setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, status: 'dispatched', assignedDroneId: drone.id } : i));
-      addAudit(createAuditEntry('HUMAN_CONFIRM', `Operator confirmed dispatch of ${drone.id}`, incidentId, drone.id));
+  /** Operator approves a pending incident → dispatch drone */
+  const confirmIncident = useCallback(async (incidentId: string) => {
+    try {
+      await api.approveIncident(incidentId);
+    } catch (err) {
+      console.error('Approve failed:', err);
     }
     setPendingConfirmation(null);
-  }, [addAudit]);
+  }, []);
 
-  const rejectIncident = useCallback((incidentId: string) => {
-    setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, status: 'rejected' } : i));
-    addAudit(createAuditEntry('HUMAN_REJECT', `Operator rejected incident`, incidentId));
-    setPendingConfirmation(null);
-  }, [addAudit]);
-
-  const manualDispatch = useCallback((targetLat: number, targetLng: number) => {
-    const idleDrones = dronesRef.current.filter(d => d.status === 'idle');
-    if (idleDrones.length === 0) return;
-    
-    // Select closest idle drone
-    const drone = selectDrone(idleDrones, { lat: targetLat, lng: targetLng });
-    if (drone) {
-      setDrones(prev => prev.map(d => d.id === drone.id ? { 
-        ...d, 
-        status: 'en_route', 
-        targetPosition: { lat: targetLat, lng: targetLng },
-        targetIncidentId: 'manual' 
-      } : d));
-      addAudit(createAuditEntry('MANUAL_DISPATCH', `Dispatching ${drone.id} to manual coordinates`, undefined, drone.id));
+  /** Operator rejects an incident */
+  const rejectIncident = useCallback(async (incidentId: string) => {
+    try {
+      await api.rejectIncident(incidentId);
+    } catch (err) {
+      console.error('Reject failed:', err);
     }
-  }, [addAudit]);
+    setPendingConfirmation(null);
+  }, []);
 
-  const abortDrone = useCallback((droneId: string) => {
-    setDrones(prev => prev.map(d => d.id === droneId ? { 
-      ...d, 
-      status: 'returning', 
-      targetIncidentId: undefined,
-      targetPosition: undefined 
-    } : d));
-    addAudit(createAuditEntry('MANUAL_ABORT', `Manual mission abort for ${droneId}`, undefined, droneId));
-  }, [addAudit]);
+  /**
+   * Manual deploy — finds the nearest idle drone and sends it to lat/lng.
+   */
+  const manualDispatch = useCallback(async (targetLat: number, targetLng: number) => {
+    const current = drones;
+    const idle = current.filter(d => d.status === 'idle' || d.status === 'charging');
+    if (idle.length === 0) {
+      console.warn('No idle drones available for manual dispatch');
+      return;
+    }
+
+    // Nearest idle by simple Euclidean distance
+    const nearest = idle.reduce((a, b) =>
+      (a.position.lat - targetLat) ** 2 + (a.position.lng - targetLng) ** 2 <
+      (b.position.lat - targetLat) ** 2 + (b.position.lng - targetLng) ** 2
+        ? a : b
+    );
+
+    try {
+      await api.deployDrone(nearest.id, targetLat, targetLng);
+    } catch (err) {
+      console.error('Manual deploy failed:', err);
+    }
+  }, [drones]);
+
+  /** Recall a specific drone */
+  const abortDrone = useCallback(async (droneId: string) => {
+    try {
+      await api.recallDrone(droneId);
+    } catch (err) {
+      console.error('Recall failed:', err);
+    }
+  }, []);
 
   return {
-    drones, incidents, auditLog, pendingConfirmation, selectedIncident,
-    setSelectedIncident, boot, confirmIncident, rejectIncident, manualDispatch, abortDrone, running,
+    drones,
+    incidents,
+    auditLog,
+    pendingConfirmation,
+    selectedIncident,
+    setSelectedIncident,
+    boot,
+    confirmIncident,
+    rejectIncident,
+    manualDispatch,
+    abortDrone,
+    running,
   };
 }

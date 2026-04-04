@@ -1,31 +1,76 @@
 export type IncidentType =
-  | 'crowd_formation'
   | 'road_accident'
+  | 'crowd_gathering'
   | 'fallen_person'
+  | 'intrusion'
+  | 'fire'
+  | 'earthquake'
   | 'unauthorized_entry'
   | 'suspicious_vehicle'
   | 'abandoned_object';
 
-export type IncidentStatus = 'detected' | 'pending_confirmation' | 'queued' | 'dispatched' | 'resolved' | 'rejected' | 'logged';
+export type IncidentStatus =
+  | 'pending'
+  | 'queued'
+  | 'dispatched'
+  | 'in_progress'
+  | 'resolved'
+  | 'rejected'
+  | 'logged';
 
-export type DroneStatus = 'idle' | 'en_route' | 'on_site' | 'returning' | 'recalled' | 'low_battery';
+export type DroneStatus =
+  | 'idle'
+  | 'en_route'
+  | 'on_site'
+  | 'returning'
+  | 'recalled'
+  | 'charging'
+  | 'low_battery';
 
-export type AuditAction =
-  | 'AI_DETECTED'
-  | 'AUTO_DISPATCH'
-  | 'HUMAN_CONFIRM'
-  | 'HUMAN_REJECT'
-  | 'MANUAL_OVERRIDE'
-  | 'MANUAL_DISPATCH'
-  | 'MANUAL_ABORT'
-  | 'INCIDENT_RESOLVED'
-  | 'LOW_BATTERY_FAILSAFE'
-  | 'FLEET_REBALANCE'
-  | 'SYSTEM_BOOT';
+export type AuditAction = string;
 
 export interface GeoPoint {
   lat: number;
   lng: number;
+}
+
+export interface Drone {
+  id: string;
+  position: GeoPoint;
+  battery: number;
+  status: DroneStatus;
+  targetIncidentId?: string;
+  basePosition: GeoPoint;
+  zoneId: string; // Dynamic sector ID
+}
+
+export interface Incident {
+  id: string;
+  type: IncidentType | string;
+  position: GeoPoint;
+  zoneId: string;
+  timestamp: number;
+  detectionConfidence: number;
+  decisionConfidence: number;
+  priorityScore: number;
+  status: IncidentStatus | string;
+  assignedDroneId?: string;
+  cameraSource: string;
+  frameCount: number;
+  peopleInFrame: number;
+  severity: number;
+  etaSeconds?: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  timestamp: number;
+  action: AuditAction;
+  incidentId?: string;
+  droneId?: string;
+  details: string;
+  priorityScore?: number;
+  decisionConfidence?: number;
 }
 
 export interface DispatchZone {
@@ -37,44 +82,6 @@ export interface DispatchZone {
   color: string;
 }
 
-export interface Drone {
-  id: string;
-  zoneId: string;
-  position: GeoPoint;
-  basePosition: GeoPoint;
-  status: DroneStatus;
-  battery: number;
-  targetIncidentId?: string;
-  targetPosition?: GeoPoint;
-  eta?: number;
-}
-
-export interface Incident {
-  id: string;
-  type: IncidentType;
-  position: GeoPoint;
-  zoneId: string;
-  timestamp: number;
-  detectionConfidence: number;
-  decisionConfidence: number;
-  priorityScore: number;
-  status: IncidentStatus;
-  assignedDroneId?: string;
-  cameraSource: string;
-  frameCount: number;
-  severity: number;
-}
-
-export interface AuditEntry {
-  id: string;
-  timestamp: number;
-  action: AuditAction;
-  incidentId?: string;
-  droneId?: string;
-  details: string;
-  confidence?: number;
-}
-
 export interface PriorityBreakdown {
   severity: number;
   zoneRisk: number;
@@ -82,5 +89,4 @@ export interface PriorityBreakdown {
   recencyBoost: number;
   multiCamBonus: number;
   etaPenalty: number;
-  finalScore: number;
 }

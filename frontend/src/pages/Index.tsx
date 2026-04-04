@@ -67,11 +67,11 @@ const Index = () => {
             </div>
           </button>
 
-          <div className="flex-[6] min-h-0 overflow-hidden">
+          <div className="flex-[6] basis-0 min-h-0 overflow-hidden flex flex-col">
             <AlertsPanel incidents={sim.incidents} onSelect={sim.setSelectedIncident} selectedId={sim.selectedIncident?.id} />
           </div>
 
-          <div className="flex-[4] min-h-0 overflow-hidden">
+          <div className="flex-[4] basis-0 min-h-0 overflow-hidden flex flex-col">
              <ActiveMissionsPanel drones={sim.drones} onOpenFeed={setActiveLiveFeed} />
           </div>
         </div>

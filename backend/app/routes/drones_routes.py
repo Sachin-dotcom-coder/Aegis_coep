@@ -4,6 +4,12 @@ import datetime
 
 router = APIRouter(prefix="/drones", tags=["drones"])
 
+@router.get("/")
+async def list_drones():
+    """Return current state of the entire drone fleet."""
+    from app.main import fleet
+    return [d.to_json() for d in fleet.drones.values()]
+
 class DeployPayload(BaseModel):
     lat: float
     lng: float

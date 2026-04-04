@@ -1,0 +1,19 @@
+# Generic ignore
+node_modules/
+dist/
+dist-ssr/
+*.log
+.DS_Store
+
+# Frontend specifics
+frontend/node_modules/
+frontend/dist/
+
+# Backend specifics
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+backend/venv/
+backend/.venv/

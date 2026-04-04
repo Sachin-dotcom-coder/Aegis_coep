@@ -20,7 +20,7 @@ export const ActiveMissionsPanel = ({ drones, onOpenFeed }: Props) => {
         <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.2em]">{activeDrones.length} Units Active</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20 transition-colors">
         {activeDrones.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-20 py-8">
             <Radio size={24} className="mb-2" />

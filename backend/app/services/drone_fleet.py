@@ -72,8 +72,8 @@ class Drone:
                 self.assigned_priority = 0.0
         elif self.state == DroneState.CHARGING:
             self.battery = min(100.0, self.battery + BATTERY_CHARGE_RATE)
-            if self.battery >= 20: 
-                pass # remains charging until full or needed
+            if self.battery >= 100.0:
+                self.state = DroneState.IDLE
         elif self.state == DroneState.IDLE:
             if self.target is not None:
                 self.battery = min(100.0, self.battery + BATTERY_CHARGE_RATE)
