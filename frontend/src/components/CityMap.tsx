@@ -32,6 +32,7 @@ interface Props {
   incidents: Incident[];
   onIncidentClick: (incident: Incident) => void;
   onManualDispatch: (lat: number, lng: number) => void;
+  onDispatchClick: (zoneId: string, idx: number) => void;
   onAbort: (droneId: string) => void;
   activeLiveFeed: string | null;
   setActiveLiveFeed: (id: string | null) => void;
@@ -72,6 +73,7 @@ export function CityMap({
   incidents,
   onIncidentClick,
   onManualDispatch,
+  onDispatchClick,
   onAbort,
   activeLiveFeed,
   setActiveLiveFeed,
@@ -85,7 +87,6 @@ export function CityMap({
   const routeLinesRef = useRef<Map<string, L.Polyline>>(new Map());
   const dispatchMarkersRef = useRef<L.LayerGroup | null>(null);
   const [maximized, setMaximized] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const layerControlRef = useRef<L.Control.Layers | null>(null);
 
   const [videoZoom, setVideoZoom] = useState(1.5);
@@ -145,18 +146,17 @@ export function CityMap({
         const baseIcon = L.divIcon({
           className: '',
           html: `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;transform:translateY(-6px)">
-            <div style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:#000;border:2px solid #fff;border-radius:10px;font-size:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.8)">D${idx + 1}</div>
-            <div style="padding:2px 6px;border-radius:999px;background:#000;border:1px solid #333;font-size:9px;line-height:1;font-family:'IBM Plex Mono',monospace;color:#fff;white-space:nowrap">${zone.name}</div>
+            <div style="padding:4px 10px;border-radius:10px;background:#000;border:2px solid #fff;font-size:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.8);white-space:nowrap">${zone.name}</div>
           </div>`,
-          iconSize: [110, 56],
-          iconAnchor: [19, 19],
+          iconSize: [200, 36],
+          iconAnchor: [100, 18],
         });
 
         const marker = L.marker([zone.position.lat, zone.position.lng], { icon: baseIcon, zIndexOffset: 1000 }).addTo(dispatchGroup);
 
         marker.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
-          setSelectedUnit(idx + 1);
+          onDispatchClick(zone.id, idx + 1);
         });
 
         marker.bindTooltip(`Dispatch Unit ${idx + 1} Status: ONLINE`, {
@@ -540,39 +540,6 @@ export function CityMap({
         </div>
       )}
 
-      {/* Selected Unit 3D Tactical Overlay */}
-      {selectedUnit !== null && (
-        <div className={`absolute bottom-10 right-10 ${maximized ? 'w-[600px] h-[350px]' : 'w-[400px] h-[250px]'} z-[10002] transition-all animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-          <div className="relative w-full h-full glass-panel bg-black/90 border-2 border-white/20 rounded-2xl overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.8)]">
-            <div className="absolute top-0 left-0 right-0 h-12 bg-white/5 border-b border-white/10 flex items-center justify-between px-6 z-20">
-              <div className="flex items-center gap-3">
-                <Activity size={16} className="text-white/60 animate-pulse" />
-                <span className="text-xs font-black tracking-[0.2em] text-white uppercase font-mono">Tactical Unit D${selectedUnit} View</span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedUnit(null);
-                }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors pointer-events-auto"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="pt-12 w-full h-full relative z-10">
-              <Suspense fallback={
-                <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-black/80">
-                  <Loader2 className="w-10 h-10 text-white/40 animate-spin" />
-                  <span className="text-[10px] font-mono tracking-[0.4em] text-white/40 uppercase animate-pulse">Syncing Drone Neuralink...</span>
-                </div>
-              }>
-                <Drone3DView drones={drones.slice(0, 3)} />
-              </Suspense>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style dangerouslySetInnerHTML={{
         __html: `

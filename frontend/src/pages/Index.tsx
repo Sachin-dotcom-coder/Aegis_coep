@@ -16,7 +16,7 @@ const Index = () => {
   const [booted, setBooted] = useState(false);
   const [activeLiveFeed, setActiveLiveFeed] = useState<string | null>(null);
   const [videoMaximized, setVideoMaximized] = useState(false);
-  const [showFleetModal, setShowFleetModal] = useState(false);
+  const [showFleetModal, setShowFleetModal] = useState<{ zoneId: string; idx: number } | boolean>(false);
   const sim = useSimulation();
   const bootRef = useRef(sim.boot);
   bootRef.current = sim.boot;
@@ -43,6 +43,7 @@ const Index = () => {
               incidents={sim.incidents}
               onIncidentClick={sim.setSelectedIncident}
               onManualDispatch={sim.manualDispatch}
+              onDispatchClick={(zoneId, idx) => setShowFleetModal({ zoneId, idx })}
               onAbort={sim.abortDrone}
               activeLiveFeed={activeLiveFeed}
               setActiveLiveFeed={setActiveLiveFeed}
@@ -122,6 +123,7 @@ const Index = () => {
         <DroneFleetPanel
           drones={sim.drones}
           expanded={true}
+          initialView={typeof showFleetModal === 'object' ? showFleetModal : null}
           onClose={() => setShowFleetModal(false)}
         />
       )}
