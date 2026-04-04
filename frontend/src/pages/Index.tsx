@@ -60,10 +60,10 @@ const Index = () => {
           >
             <div className="flex items-center gap-4">
               <Activity size={20} className="group-hover:animate-ping text-white/60 group-hover:text-black" />
-              <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Live Fleet Telemetry</span>
+              <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Drone Status List</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono text-white/20 group-hover:text-black/40 uppercase tracking-widest">Aegis-Linked</span>
+              <span className="text-[10px] font-mono text-white/20 group-hover:text-black/40 uppercase tracking-widest">System-Connected</span>
             </div>
           </button>
 
@@ -91,23 +91,11 @@ const Index = () => {
 
       {/* Fleet Telemetry Modal */}
       {showFleetModal && (
-        <div className="fixed inset-0 z-[50000] flex items-center justify-center p-20 bg-black/80 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-500">
-           <div className="relative w-full max-w-4xl h-[80vh] flex flex-col bg-black border-4 border-white/10 rounded-[40px] overflow-hidden shadow-[0_60px_150px_rgba(0,0,0,1)]">
-              <div className="absolute top-8 right-8 z-50">
-                <button onClick={() => setShowFleetModal(false)} className="p-4 bg-white/10 hover:bg-red-600 rounded-2xl transition-all text-white"><X size={24} /></button>
-              </div>
-              <div className="p-10 border-b border-white/5 bg-white/5">
-                <h2 className="text-3xl font-black text-white italic uppercase tracking-[0.2em] font-mono">Operations: Fleet Telemetry</h2>
-                <div className="flex items-center gap-3 mt-2">
-                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                   <span className="text-[10px] font-mono text-white/30 uppercase tracking-[0.4em]">Signal Integrity: MIL-SPEC AES-256</span>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                <DroneFleetPanel drones={sim.drones} />
-              </div>
-           </div>
-        </div>
+        <DroneFleetPanel 
+          drones={sim.drones} 
+          expanded={true} 
+          onClose={() => setShowFleetModal(false)} 
+        />
       )}
 
       {/* Audit log */}

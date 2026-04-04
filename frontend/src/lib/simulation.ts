@@ -33,12 +33,13 @@ export function genId(prefix = 'id'): string {
 
 export function initDrones(): Drone[] {
   const drones: Drone[] = [];
+  let globalIdx = 1;
   DISPATCH_ZONES.forEach((zone) => {
     for (let i = 0; i < 3; i++) {
       const offset = { lat: (Math.random() - 0.5) * 0.002, lng: (Math.random() - 0.5) * 0.002 };
       const pos = { lat: zone.position.lat + offset.lat, lng: zone.position.lng + offset.lng };
       drones.push({
-        id: `drone_${zone.id}_${i + 1}`,
+        id: `drone_${globalIdx++}`,
         zoneId: zone.id,
         position: { ...pos },
         basePosition: { ...pos },

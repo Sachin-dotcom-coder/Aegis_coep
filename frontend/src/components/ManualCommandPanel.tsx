@@ -43,7 +43,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
       >
         <div className="flex items-center gap-4">
           <Target size={20} className="group-hover:animate-spin" />
-          <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Deploy Manual Mission</span>
+          <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Manual Dispatch</span>
         </div>
         <div className={`w-2 h-2 rounded-full ${showConsole ? 'bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]' : 'bg-white/20'}`} />
       </button>
@@ -51,7 +51,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
       {showConsole && (
         <div className="mt-2 flex flex-col gap-4 bg-black/95 backdrop-blur-3xl border border-white/10 p-5 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-mono text-white/30 uppercase tracking-[0.3em]">Sector Target Lock-on</span>
+            <span className="text-[9px] font-mono text-white/30 uppercase tracking-[0.3em]">Dispatch Location</span>
             <button onClick={() => setShowConsole(false)} className="text-white/20 hover:text-white"><X size={14} /></button>
           </div>
 
@@ -59,7 +59,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${searching ? 'text-white animate-spin' : 'text-white/40'}`} size={16} />
             <input 
               type="text" 
-              placeholder="Target: Kothrud, Pune..." 
+              placeholder="Location: Kothrud, Pune..." 
               value={manualAddress}
               onChange={(e) => {
                 setManualAddress(e.target.value);
@@ -99,7 +99,7 @@ export const ManualCommandPanel = ({ onManualDispatch }: Props) => {
             className="w-full bg-white text-black py-3.5 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-10"
           >
             <Scan size={18} />
-            <span className="text-[10px] font-black tracking-[0.3em] uppercase">Launch Strategy</span>
+            <span className="text-[10px] font-black tracking-[0.3em] uppercase">Send Drone</span>
           </button>
         </div>
       )}

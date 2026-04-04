@@ -115,49 +115,10 @@ export function Drone3DView({ drones }: { drones: { battery: number; id: string;
   }, [drones.length]);
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 bg-black/40 p-4 rounded-2xl border border-white/5 overflow-hidden">
+    <div className="w-full h-full flex flex-col gap-0 bg-transparent overflow-hidden">
       {drones.slice(0, 3).map((drone, idx) => (
-        <div key={drone.id} className="flex-1 flex items-center bg-white/[0.03] border border-white/5 rounded-xl overflow-hidden hover:bg-white/[0.06] transition-colors group">
-          {/* 3D Model Column */}
-          <div className="w-1/3 h-full relative border-r border-white/5">
-            <div ref={droneRefs[idx]} className="w-full h-full" />
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-transparent to-black/20" />
-          </div>
-
-          {/* Telemetry Column */}
-          <div className="flex-1 px-8 flex flex-col justify-center gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-white/40 uppercase tracking-[0.4em]">Hardware Identifier</span>
-              <span className="text-[10px] font-mono text-white/40 uppercase tracking-[0.4em]">Operational Status</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-white tracking-widest uppercase font-mono">
-                {drone.id.replace('drone_', 'UNIT-')}
-              </h4>
-              <div className="flex items-center gap-3 bg-white/10 px-4 py-1.5 rounded-full border border-white/10">
-                <div className={`w-2 h-2 rounded-full animate-pulse ${drone.status === 'idle' ? 'bg-white/40' : 'bg-green-500 shadow-[0_0_8px_#22c55e]'}`} />
-                <span className="text-xs font-bold text-white tracking-widest uppercase">
-                  {drone.status || 'ACTIVE'}
-                </span>
-              </div>
-            </div>
-
-            {/* Battery Metrics */}
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em]">Power Capacity</span>
-                <span className={`text-sm font-bold font-mono ${drone.battery < 20 ? 'text-red-500' : 'text-white'}`}>
-                  {drone.battery.toFixed(1)}%
-                </span>
-              </div>
-              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                <div 
-                  className={`h-full transition-all duration-1000 ${drone.battery < 20 ? 'bg-red-500' : 'bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.4)]'}`}
-                  style={{ width: `${drone.battery}%` }}
-                />
-              </div>
-            </div>
-          </div>
+        <div key={drone.id} className="flex-1 relative bg-transparent overflow-hidden">
+           <div ref={droneRefs[idx]} className="w-full h-full" />
         </div>
       ))}
     </div>

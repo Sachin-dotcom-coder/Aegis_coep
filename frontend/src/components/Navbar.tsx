@@ -16,7 +16,6 @@ export function Navbar({ drones, incidents }: Props) {
       <div className="flex items-center gap-3">
         <Shield size={16} className="text-foreground/80" />
         <span className="text-sm font-semibold tracking-[0.15em] text-foreground" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>AEGIS SHIELD</span>
-        <span className="text-[9px] text-muted-foreground font-mono">v2.0</span>
       </div>
 
       <div className="flex items-center gap-6 text-[10px] font-mono text-muted-foreground">

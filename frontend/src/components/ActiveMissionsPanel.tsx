@@ -15,7 +15,7 @@ export const ActiveMissionsPanel = ({ drones, onOpenFeed }: Props) => {
       <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Activity size={16} className="text-white/60 animate-pulse" />
-          <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Active Operations Ledger</span>
+          <span className="text-[11px] font-black tracking-[0.3em] uppercase italic">Active Unit Status</span>
         </div>
         <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.2em]">{activeDrones.length} Units Active</span>
       </div>
