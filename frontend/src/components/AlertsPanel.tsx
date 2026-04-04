@@ -26,10 +26,10 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
     }`}>
       <div className="flex items-center gap-3 mb-6">
         <AlertTriangle size={expanded ? 24 : 13} className="text-white/60" />
-        <h3 className={`${expanded ? 'text-2xl' : 'text-xs'} font-semibold tracking-widest text-white uppercase font-sans`}>
+        <h3 className={`${expanded ? 'text-2xl' : 'text-sm'} font-semibold tracking-widest text-white uppercase font-sans`}>
           Active Strategic Alerts
         </h3>
-        <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[10px] px-2 py-0.5'} ml-auto rounded-full bg-white/10 text-white font-mono`}>
+        <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[13px] px-2 py-0.5'} ml-auto rounded-full bg-white/10 text-white font-mono`}>
           {active.length}
         </span>
         <button 
@@ -84,14 +84,14 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
                     {getIncidentLabel(inc.type as IncidentType)}
                   </span>
                   {inc.type === 'manual_deployment' && (
-                    <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-black rounded uppercase tracking-tighter">Manual</span>
+                    <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[11px] font-black rounded uppercase tracking-tighter">Manual</span>
                   )}
                 </div>
-                <span className={`${expanded ? 'text-xs px-3 py-1' : 'text-[8px] px-1.5 py-0.5'} font-bold rounded ${sev.cls}`}>
+                <span className={`${expanded ? 'text-xs px-3 py-1' : 'text-[11px] px-1.5 py-0.5'} font-bold rounded ${sev.cls}`}>
                   {sev.text}
                 </span>
               </div>
-              <div className={`flex items-center gap-6 text-white/60 font-mono ${expanded ? 'text-sm' : 'text-[10px]'}`} onClick={() => onSelect(inc)}>
+              <div className={`flex items-center gap-6 text-white/60 font-mono ${expanded ? 'text-sm' : 'text-[13px]'}`} onClick={() => onSelect(inc)}>
                 <span>PRIORITY: {inc.priorityScore.toFixed(1)}</span>
                 {inc.type !== 'manual_deployment' && (
                   <span>CONFIDENCE: {(inc.detectionConfidence * 100).toFixed(0)}%</span>
@@ -102,7 +102,7 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
           );
         })}
         {active.length === 0 && (
-          <div className={`text-center text-white/40 font-sans ${expanded ? 'text-xl py-20' : 'text-xs py-8'}`}>
+          <div className={`text-center text-white/40 font-sans ${expanded ? 'text-xl py-20' : 'text-sm py-8'}`}>
             No active alerts detected. Monitoring Pune sector...
           </div>
         )}
