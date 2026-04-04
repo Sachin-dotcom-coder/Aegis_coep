@@ -133,24 +133,59 @@ async def seed():
     # ── 3 streamlined incidents ──────────────────────────────
     incidents = [
         {
-            "id": f"INC-00{i+1}",
-            "zone_id": f"Z{(i % 5) + 1}",
-            "zone_accident_frequency": 0.8,
-            "type": random.choice(["road_accident", "fire", "intrusion", "fallen_person"]),
-            "severity": random.randint(5, 9),
-            "camera_id": f"CAM-TEST-{i}",
-            "camera_coverage": 300,
-            "people_in_frame": random.randint(5, 50),
-            "lat": round(18.5 + (random.random() * 0.1), 4),
-            "lng": round(73.8 + (random.random() * 0.1), 4),
-            "detect_confidence": 0.85,
-            "timestamp": now - datetime.timedelta(minutes=i*2),
-            "decision_confidence": 0.75,
-            "priority_score": 8.5,
-            "status": "auto",           # Force FleetManager to pick it up
-            "assigned_drone": None,     # Let backend choose
+            "id": "SAFE-EAST-KALYANI",
+            "zone_id": "Z2",
+            "type": "Perimeter Patrol",
+            "severity": 8,
+            "camera_id": "CAM-08",
+            "camera_coverage": 350,
+            "people_in_frame": 8,
+            "lat": 18.5463, # Kalyani Nagar
+            "lng": 73.9033,
+            "detect_confidence": 0.95,
+            "timestamp": now,
+            "decision_confidence": 0.90,
+            "priority_score": 9.2,
+            "status": "auto",
+            "assigned_drone": None,
             "eta_seconds": None,
-        } for i in range(3)
+        },
+        {
+            "id": "SAFE-WEST-KOTHRUD",
+            "zone_id": "Z3",
+            "type": "Urban Recon",
+            "severity": 7,
+            "camera_id": "CAM-22",
+            "camera_coverage": 450,
+            "people_in_frame": 14,
+            "lat": 18.5050, # Kothrud Junction
+            "lng": 73.7850,
+            "detect_confidence": 0.90,
+            "timestamp": now - datetime.timedelta(minutes=1),
+            "decision_confidence": 0.85,
+            "priority_score": 8.5,
+            "status": "auto",
+            "assigned_drone": None,
+            "eta_seconds": None,
+        },
+        {
+            "id": "SAFE-SOUTH-BIBWE",
+            "zone_id": "Z4",
+            "type": "Crowd Pulse",
+            "severity": 6,
+            "camera_id": "CAM-15",
+            "camera_coverage": 200,
+            "people_in_frame": 30,
+            "lat": 18.4750, # Bibwewadi Main Hub
+            "lng": 73.8650,
+            "detect_confidence": 0.88,
+            "timestamp": now - datetime.timedelta(minutes=2),
+            "decision_confidence": 0.82,
+            "priority_score": 7.8,
+            "status": "auto",
+            "assigned_drone": None,
+            "eta_seconds": None,
+        }
     ]
 
     result = await db.incidents.insert_many(incidents)

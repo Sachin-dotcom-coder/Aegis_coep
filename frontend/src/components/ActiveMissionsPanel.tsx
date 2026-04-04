@@ -9,7 +9,7 @@ interface Props {
 
 export const ActiveMissionsPanel = ({ drones, onOpenFeed }: Props) => {
   const activeDrones = drones.filter(d => d.status !== 'idle');
-  
+
   return (
     <div className="flex-1 flex flex-col bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
       <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
@@ -20,7 +20,7 @@ export const ActiveMissionsPanel = ({ drones, onOpenFeed }: Props) => {
         <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.2em]">{activeDrones.length} Units Active</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent hover:scrollbar-thumb-white/20 transition-colors">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
         {activeDrones.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-20 py-8">
             <Radio size={24} className="mb-2" />

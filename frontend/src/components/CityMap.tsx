@@ -345,12 +345,6 @@ export function CityMap({
         const incident = incidents.find((i) => i.id === drone.targetIncidentId);
         if (!incident) return;
 
-        // Trace of the target path (faded static line)
-        L.polyline(
-          [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
-          { color: '#ffffff', weight: 1, opacity: 0.1 }
-        ).addTo(map);
-
         // Animated FLOWING line to the target
         const line = L.polyline(
           [[drone.position.lat, drone.position.lng], [incident.position.lat, incident.position.lng]],
@@ -358,7 +352,7 @@ export function CityMap({
             color: '#ffffff',
             weight: 2,
             dashArray: '12 12',
-            className: 'flowing-route', // Dynamic CSS animation
+            className: 'flowing-route', 
             opacity: 0.7
           }
         ).addTo(map);
