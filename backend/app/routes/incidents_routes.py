@@ -12,13 +12,12 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 @router.post("/")
 async def create_incident(incident: Incident):
     db = await get_db()
-    
     # 1. Calculate Decision Confidence & Priority
     incident.decision_confidence = incident.detect_confidence * incident.zone_accident_frequency
     incident.priority_score = calculate_priority(incident)
     
     # 2. Confidence gate — what to do with it
-    action = gate(incident.decision_confidence)
+    action = gate(incident.decision_confidence, incident.type, incident.detect_confidence)
     # Map gate action to database status
     if action == "human":
         incident.status = "pending"

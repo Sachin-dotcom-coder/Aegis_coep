@@ -223,10 +223,18 @@ class DroneFleet:
         return drone.battery > (req_cost + hover_cost + return_cost)
 
     def best_drone_for(self, lat, lng):
-        candidates = [d for d in self.drones.values() 
-                      if d.state in (DroneState.IDLE, DroneState.CHARGING, DroneState.RECALLED, DroneState.EN_ROUTE) 
-                      and self.has_enough_battery(d, lat, lng)]
-        if not candidates: return None
+        candidates = []
+        for d in self.drones.values():
+            if d.state not in (DroneState.IDLE, DroneState.CHARGING, DroneState.RECALLED, DroneState.EN_ROUTE):
+                continue
+            if not self.has_enough_battery(d, lat, lng):
+                print(f"⚠️ Drone {d.id} disqualified for ({lat}, {lng}): Not enough battery.")
+                continue
+            candidates.append(d)
+            
+        if not candidates:
+            print(f"⚠️ Fleet WARNING: No drones available to dispatch to ({lat}, {lng})! All disqualified.")
+            return None
         def score_drone(d):
             nfz_dist = get_nfz_aware_distance((d.lat, d.lng), (lat, lng))
             dist_sq = nfz_dist**2
@@ -237,8 +245,14 @@ class DroneFleet:
 
     def sort_pending_queue(self):
         def get_priority(incident):
-            inc_lat = incident.get('lat', incident.get('latitude', 0.0))
-            inc_lng = incident.get('lng', incident.get('longitude', 0.0))
+            raw_lat = incident.get('lat')
+            raw_lng = incident.get('lng')
+            if raw_lat is None: raw_lat = incident.get('latitude')
+            if raw_lng is None: raw_lng = incident.get('longitude')
+            
+            inc_lat = float(raw_lat) if raw_lat is not None else 0.0
+            inc_lng = float(raw_lng) if raw_lng is not None else 0.0
+            
             best_drone = self.best_drone_for(inc_lat, inc_lng)
             dist = math.sqrt((best_drone.lat - inc_lat)**2 + (best_drone.lng - inc_lng)**2) if best_drone else 1.0
             return calculate_dynamic_priority(incident, dist)
@@ -290,8 +304,15 @@ class DroneFleet:
         for incident in list(self.pending_queue):
             inc_priority = incident.get('priority_score', 0)
             inc_id = incident.get('id', 'N/A')
-            inc_lat = incident.get('lat', incident.get('latitude', 0.0))
-            inc_lng = incident.get('lng', incident.get('longitude', 0.0))
+            
+            # Robust extraction of coordinates (avoids NoneType errors when keys exist but equal None)
+            raw_lat = incident.get('lat')
+            raw_lng = incident.get('lng')
+            if raw_lat is None: raw_lat = incident.get('latitude')
+            if raw_lng is None: raw_lng = incident.get('longitude')
+            
+            inc_lat = float(raw_lat) if raw_lat is not None else 0.0
+            inc_lng = float(raw_lng) if raw_lng is not None else 0.0
             
             # Prevent swarm dispatch for concurrently created duplicate incidents
             already_covered = False
