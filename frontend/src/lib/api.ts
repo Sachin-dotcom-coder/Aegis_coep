@@ -36,6 +36,7 @@ export interface BackendIncident {
   status: string;
   assigned_drone: string | null;
   eta_seconds: number | null;
+  multi_cam_bonus?: number | null;
 }
 
 export interface BackendAudit {
@@ -101,7 +102,7 @@ export function mapIncident(b: BackendIncident): Incident {
     id:                  b.id,
     type:                b.type,
     position:            { lat: b.lat, lng: b.lng },
-    zoneId:              b.zone_id,
+    zoneId:              b.zone_id.toLowerCase(),
     timestamp:           new Date(b.timestamp).getTime(),
     detectionConfidence: b.detect_confidence,
     decisionConfidence:  b.decision_confidence ?? 0,
@@ -113,6 +114,7 @@ export function mapIncident(b: BackendIncident): Incident {
     peopleInFrame:        b.people_in_frame, // Aligned with central types
     severity:            b.severity,
     etaSeconds:          b.eta_seconds ?? undefined,
+    multiCamBonus:       b.multi_cam_bonus ?? undefined,
   };
 }
 

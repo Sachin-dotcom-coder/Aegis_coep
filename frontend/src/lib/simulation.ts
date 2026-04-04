@@ -18,7 +18,7 @@ const INCIDENT_TYPES: { type: IncidentType; severity: number; label: string }[] 
   { type: 'abandoned_object', severity: 7, label: 'Abandoned Object' },
 ];
 
-export function getIncidentLabel(type: IncidentType): string {
+export function getIncidentLabel(type: string): string {
   return INCIDENT_TYPES.find(t => t.type === type)?.label ?? type;
 }
 
@@ -65,7 +65,7 @@ export function calculatePriority(incident: Partial<Incident>, zone: DispatchZon
   const hour = new Date().getHours();
   const timeWeight = hour >= 22 || hour <= 5 ? 1.3 : hour >= 17 ? 1.15 : 1.0;
   const recencyBoost = 1.2;
-  const multiCamBonus = Math.random() > 0.6 ? 1.15 : 1.0;
+  const multiCamBonus = incident.multiCamBonus ?? (Math.random() > 0.6 ? 1.15 : 1.0);
   const etaPenalty = nearestEta * 0.05;
 
   const finalScore = (severity * zoneRisk * timeWeight * recencyBoost * multiCamBonus) / (1 + etaPenalty);
@@ -105,6 +105,7 @@ export function spawnIncident(zones: DispatchZone[], drones: Drone[]): { inciden
     cameraSource: `CAM-${zone.name.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 9) + 1}`,
     frameCount: 5 + Math.floor(Math.random() * 10),
     severity: typeInfo.severity,
+    peopleInFrame: Math.floor(Math.random() * 20),
   };
 
   return { incident, zone };

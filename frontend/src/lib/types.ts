@@ -7,7 +7,8 @@ export type IncidentType =
   | 'earthquake'
   | 'unauthorized_entry'
   | 'suspicious_vehicle'
-  | 'abandoned_object';
+  | 'abandoned_object'
+  | 'crowd_formation';
 
 export type IncidentStatus =
   | 'pending'
@@ -60,6 +61,7 @@ export interface Incident {
   peopleInFrame: number;
   severity: number;
   etaSeconds?: number;
+  multiCamBonus?: number;
 }
 
 export interface AuditEntry {
@@ -71,6 +73,7 @@ export interface AuditEntry {
   details: string;
   priorityScore?: number;
   decisionConfidence?: number;
+  confidence?: number;
 }
 
 export interface DispatchZone {
@@ -89,4 +92,5 @@ export interface PriorityBreakdown {
   recencyBoost: number;
   multiCamBonus: number;
   etaPenalty: number;
+  finalScore: number;
 }

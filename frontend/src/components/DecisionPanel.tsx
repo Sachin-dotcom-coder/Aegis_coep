@@ -34,7 +34,10 @@ export function DecisionPanel({ incident }: Props) {
     );
   }
 
-  const zone = DISPATCH_ZONES.find(z => z.id === incident.zoneId)!;
+  // Ensure we find the zone even if the ID casing is different (e.g., Z1 vs z1)
+  const zone = DISPATCH_ZONES.find(z => z.id.toLowerCase() === incident.zoneId?.toLowerCase()) || DISPATCH_ZONES[0];
+  
+  // Safe calculation with fallback zone
   const priority = calculatePriority(incident, zone, 2);
   const actionLabel = incident.decisionConfidence > 0.8 ? 'AUTO DISPATCH' : incident.decisionConfidence >= 0.5 ? 'HUMAN CONFIRM' : 'SILENT LOG';
 
