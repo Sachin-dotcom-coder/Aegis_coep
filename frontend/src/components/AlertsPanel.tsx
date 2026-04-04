@@ -54,29 +54,15 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
                   : inc.type === 'manual_deployment' ? 'bg-blue-500/5 border-blue-500/20' : 'bg-transparent'
               }`}
             >
-              {inc.type === 'manual_deployment' ? (
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // For manual deployments, we use the same onReject but we should ensure it recalls
-                    onReject(inc.id);
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-[9px] font-black tracking-widest rounded transition-all opacity-0 group-hover:opacity-100 uppercase"
-                >
-                  Abort
-                </button>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReject(inc.id);
-                  }}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 text-red-500 transition-all rounded"
+                  onClick={(e) => { e.stopPropagation(); onReject(inc.id); }}
+                  className="p-1 hover:bg-red-500/20 text-red-500 rounded"
                   title="Dismiss Alert"
                 >
                   <X size={14} />
                 </button>
-              )}
+              </div>
 
               <div className="flex items-center justify-between mb-3 pr-6" onClick={() => onSelect(inc)}>
                 <div className="flex items-center gap-2">
@@ -86,6 +72,9 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
                   {inc.type === 'manual_deployment' && (
                     <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[11px] font-black rounded uppercase tracking-tighter">Manual</span>
                   )}
+                  {inc.status === 'silent' && (
+                    <span className="px-1.5 py-0.5 bg-white/10 text-white/40 text-[9px] font-bold rounded uppercase tracking-widest border border-white/10">Silent Log</span>
+                  )}
                 </div>
                 <span className={`${expanded ? 'text-xs px-3 py-1' : 'text-[11px] px-1.5 py-0.5'} font-bold rounded ${sev.cls}`}>
                   {sev.text}
@@ -94,9 +83,13 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
               <div className={`flex items-center gap-6 text-white/60 font-mono ${expanded ? 'text-sm' : 'text-[13px]'}`} onClick={() => onSelect(inc)}>
                 <span>PRIORITY: {inc.priorityScore.toFixed(1)}</span>
                 {inc.type !== 'manual_deployment' && (
-                  <span>CONFIDENCE: {(inc.detectionConfidence * 100).toFixed(0)}%</span>
+                  <span className={inc.status === 'silent' ? 'text-white/20' : ''}>
+                    CONFIDENCE: {(inc.detectionConfidence * 100).toFixed(0)}%
+                  </span>
                 )}
-                <span className="ml-auto uppercase tracking-widest">{inc.status.replace(/_/g, ' ')}</span>
+                <span className={`ml-auto uppercase tracking-widest ${inc.status === 'silent' ? 'text-white/20' : ''}`}>
+                  {inc.status.replace(/_/g, ' ')}
+                </span>
               </div>
             </div>
           );

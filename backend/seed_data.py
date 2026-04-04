@@ -125,7 +125,8 @@ async def seed():
 
     # Clear old sample data
     print("🗑  Clearing existing sample data...")
-    await db.incidents.delete_many({"id": {"$regex": "^INC-"}})
+    # Also delete the streamlined incidents (starting with SAFE-)
+    await db.incidents.delete_many({"id": {"$regex": "^(INC-|SAFE-)"}})
     await db.audit.delete_many({"reason": {"$regex": "System"}})
 
     now = datetime.datetime.utcnow()
@@ -133,56 +134,56 @@ async def seed():
     # ── 3 streamlined incidents ──────────────────────────────
     incidents = [
         {
-            "id": "SAFE-EAST-KALYANI",
-            "zone_id": "Z2",
+            "id": "SAFE-AUTO-90",
+            "zone_id": "Z1",
             "type": "Perimeter Patrol",
-            "severity": 8,
-            "camera_id": "CAM-08",
-            "camera_coverage": 350,
-            "people_in_frame": 8,
-            "lat": 18.5463, # Kalyani Nagar
-            "lng": 73.9033,
-            "detect_confidence": 0.95,
+            "severity": 9,
+            "camera_id": "CAM-01",
+            "camera_coverage": 400,
+            "people_in_frame": 12,
+            "lat": 18.5300,
+            "lng": 73.8500,
+            "detect_confidence": 0.99,
             "timestamp": now,
-            "decision_confidence": 0.90,
-            "priority_score": 9.2,
+            "decision_confidence": 0.90, # > 80% -> Auto
+            "priority_score": 9.9,
             "status": "auto",
             "assigned_drone": None,
             "eta_seconds": None,
         },
         {
-            "id": "SAFE-WEST-KOTHRUD",
-            "zone_id": "Z3",
+            "id": "SAFE-POPUP-50",
+            "zone_id": "Z2",
             "type": "Urban Recon",
             "severity": 7,
-            "camera_id": "CAM-22",
-            "camera_coverage": 450,
-            "people_in_frame": 14,
-            "lat": 18.5050, # Kothrud Junction
-            "lng": 73.7850,
-            "detect_confidence": 0.90,
-            "timestamp": now - datetime.timedelta(minutes=1),
-            "decision_confidence": 0.85,
-            "priority_score": 8.5,
-            "status": "auto",
+            "camera_id": "CAM-08",
+            "camera_coverage": 300,
+            "people_in_frame": 5,
+            "lat": 18.5500,
+            "lng": 73.9300,
+            "detect_confidence": 0.60,
+            "timestamp": now - datetime.timedelta(seconds=10),
+            "decision_confidence": 0.50, # 30%-80% -> Human Modal
+            "priority_score": 6.5,
+            "status": "pending",
             "assigned_drone": None,
             "eta_seconds": None,
         },
         {
-            "id": "SAFE-SOUTH-BIBWE",
+            "id": "SAFE-SILENT-20",
             "zone_id": "Z4",
             "type": "Crowd Pulse",
             "severity": 6,
             "camera_id": "CAM-15",
             "camera_coverage": 200,
-            "people_in_frame": 30,
-            "lat": 18.4750, # Bibwewadi Main Hub
-            "lng": 73.8650,
-            "detect_confidence": 0.88,
-            "timestamp": now - datetime.timedelta(minutes=2),
-            "decision_confidence": 0.82,
-            "priority_score": 7.8,
-            "status": "auto",
+            "people_in_frame": 40,
+            "lat": 18.4500,
+            "lng": 73.8600,
+            "detect_confidence": 0.30,
+            "timestamp": now - datetime.timedelta(seconds=20),
+            "decision_confidence": 0.20, # < 30% -> Silent
+            "priority_score": 3.8,
+            "status": "silent",
             "assigned_drone": None,
             "eta_seconds": None,
         }

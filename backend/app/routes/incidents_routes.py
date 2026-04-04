@@ -24,6 +24,8 @@ async def create_incident(incident: Incident):
         incident.status = "pending"
     elif action == "auto":
         incident.status = "auto"
+    elif action == "silent":
+        incident.status = "silent"
     else:
         incident.status = "queued"
     
