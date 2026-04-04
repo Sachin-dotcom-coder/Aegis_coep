@@ -90,7 +90,7 @@ def run(source, debug: bool = False):
 
     while True:
         # ── Keyboard ──────────────────────────────────────────────────────────
-        key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(33) & 0xFF
         if key == ord("q"):
             break
         elif key == ord(" "):

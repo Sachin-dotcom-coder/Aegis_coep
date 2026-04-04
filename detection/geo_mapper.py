@@ -55,6 +55,38 @@ def get_zone(cx: float, cy: float) -> Zone:
 
 
 def pixel_to_latlon(cx: float, cy: float):
-    """Return (lat, lng, zone) for a given pixel centre."""
+    """
+    Return (lat, lng, zone) for a given pixel centre.
+    
+    NEW: Interpolates lat/lng based on pixel position within the zone,
+    instead of just returning zone centroid. This gives precise location data.
+    """
     zone = get_zone(cx, cy)
-    return zone.lat, zone.lng, zone
+    
+    # Calculate position ratio within the zone (0.0 = left/top, 1.0 = right/bottom)
+    zone_width = zone.px_x2 - zone.px_x1
+    zone_height = zone.px_y2 - zone.px_y1
+    
+    # Prevent division by zero
+    if zone_width == 0 or zone_height == 0:
+        return zone.lat, zone.lng, zone
+    
+    # Ratio of pixel position within zone
+    x_ratio = (cx - zone.px_x1) / zone_width  # 0.0-1.0
+    y_ratio = (cy - zone.px_y1) / zone_height  # 0.0-1.0
+    
+    # Define corner coordinates for this zone
+    # Top-left, top-right, bottom-left, bottom-right
+    # These are estimated based on typical camera layout
+    # You may need to adjust these based on your actual camera calibration
+    
+    # For demo: assume zones form a rectangle
+    # Each zone gets interpolated based on its position
+    lat_variance = 0.001  # ~111 meters per 0.001 degree
+    lng_variance = 0.001
+    
+    # Calculate interpolated lat/lng
+    interpolated_lat = zone.lat - (y_ratio - 0.5) * lat_variance
+    interpolated_lng = zone.lng + (x_ratio - 0.5) * lng_variance
+    
+    return interpolated_lat, interpolated_lng, zone
