@@ -1,24 +1,13 @@
-#!/usr/bin/env python3
-"""
-seed_data.py  —  Aegis AI sample data seeder
-Populates MongoDB with realistic incidents and audit entries so the
-frontend looks filled from the first load.
-
-Usage (from the backend/ directory):
-    python seed_data.py [random_count]
-"""
-
 import asyncio
 import datetime
-import random
 import math
+import random
 import sys
 from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 
 load_dotenv()
-
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 MONGO_DB  = os.getenv("MONGO_DB_NAME", "Aegis_AI")
 
@@ -39,19 +28,26 @@ ZONES = [
     {"id": "Z5", "lat": 18.5600, "lng": 73.9100, "freq": 0.7, "cam": "CAM-KTH"},
 ]
 
-
-async def seed(random_count: int = 20):
+async def seed(random_count: int = 11):
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[MONGO_DB]
+    print("🗑  Clearing existing data...")
+    await db.incidents.delete_many({})
+    await db.audit.delete_many({})
 
-    print("🗑  Clearing existing sample data...")
-    await db.incidents.delete_many({"id": {"$regex": "^(INC-|SAFE-|SEED-)"}})
-    await db.audit.delete_many({"reason": {"$regex": "System"}})
-
+    all_incidents = []
     now = datetime.datetime.utcnow()
+    
+    # ── Pinned Clean Starters ──────────────────────────────────────────────
+    all_incidents.append({
+        "id": "SAFE-AUTO-DISPATCH", "type": "road_accident", "severity": 9,
+        "lat": 18.5300, "lng": 73.8500, "detect_confidence": 0.95, "decision_confidence": 0.85,
+        "status": "auto", "priority_score": 9.5, "timestamp": now, "assigned_drone": None,
+        "zone_id": "Z1", "zone_accident_frequency": 0.8, "camera_id": "CAM-01"
+    })
 
     # ── 3 specific showcase incidents (2 road accidents, 1 fire) ─────────────────
-    pinned = [
+    all_incidents.extend([
         {
             "id": "SEED-ACCIDENT-1",
             "zone_id": "Z1", "type": "road_accident", "severity": 9,
@@ -82,121 +78,69 @@ async def seed(random_count: int = 20):
             "status": "pending", "assigned_drone": None, "eta_seconds": None,
             "zone_accident_frequency": 0.6,
         },
-    ]
+    ])
 
     # ── randomised stress-test incidents ──────────────────────────────────
-    random_incidents = []
+    used_zones = set()
     for i in range(1, random_count + 1):
-        zone     = random.choice(ZONES)
+        # Prefer an unused zone if available to maximize drone spread
+        available = [z for z in ZONES if z["id"] not in used_zones]
+        zone = random.choice(available if available else ZONES)
+        used_zones.add(zone["id"])
+        
         inc_type = random.choice(INCIDENT_TYPES)
-
-        tier_roll = random.random()
-        if tier_roll < 0.25:
-            detect = round(random.uniform(0.25, 0.49), 2)
-        elif tier_roll < 0.60:
-            detect = round(random.uniform(0.50, 0.69), 2)
-        else:
-            detect = round(random.uniform(0.70, 0.99), 2)
-
+        detect = round(random.uniform(0.1, 0.99), 2)
         zone_freq = round(zone["freq"] + random.uniform(-0.1, 0.1), 2)
-        decision  = round(detect * zone_freq, 2)
-        priority  = round(inc_type["severity"] * decision * random.uniform(0.8, 1.2), 3)
-
-        if detect >= 0.50:
-            status = random.choice(["auto", "auto", "pending", "queued"])
-        elif decision >= 0.20:
+        decision = round(detect * zone_freq, 2)
+        
+        # ── THE NEW GATE RULES (40% THRESHOLD) ──────────────────────────
+        if detect >= 0.40 and decision >= 0.40:
+            status = "auto"
+        elif detect >= 0.40 or decision >= 0.40:
             status = "pending"
         else:
             status = "silent"
-
-        ts = now - datetime.timedelta(minutes=random.randint(0, 120))
-
-        # ── Ensure incident is outside ALL No-Fly Zones ───────────────────────
-        def is_in_nfz(lat, lng):
-            # Matches backend drone_fleet.py definitions
-            nfzs = [
-                (18.5850, 73.9200, 0.025), # Pune Airport
-                (18.5250, 73.8850, 0.020), # Camp Area
-                (18.5550, 73.8250, 0.018), # Govt Restricted
-                (18.4350, 73.9290, 0.028)  # South Perimeter
-            ]
-            for zlat, zlng, zrad in nfzs:
-                if math.sqrt((lat - zlat)**2 + (lng - zlng)**2) < zrad:
-                    return True
-            return False
-
-        trial_lat, trial_lng = 0.0, 0.0
-        while True:
-            trial_lat = round(zone["lat"] + random.uniform(-0.02, 0.02), 6)
-            trial_lng = round(zone["lng"] + random.uniform(-0.02, 0.02), 6)
-            if not is_in_nfz(trial_lat, trial_lng):
-                break
-        # ────────────────────────────────────────────────────────────────────
-
-        random_incidents.append({
-            "id":                      f"SEED-{str(i).zfill(3)}",
-            "zone_id":                 zone["id"],
-            "zone_accident_frequency": zone_freq,
-            "type":                    inc_type["type"],
-            "severity":                inc_type["severity"],
-            "camera_id":               f"{zone['cam']}-{random.randint(1, 9):02d}",
-            "camera_coverage":         random.randint(80, 500),
-            "people_in_frame":         random.randint(1, 40),
-            "lat":                     trial_lat,
-            "lng":                     trial_lng,
-            "detect_confidence":       detect,
-            "timestamp":               ts,
-            "decision_confidence":     decision,
-            "priority_score":          priority,
-            "status":                  status,
-            "assigned_drone":          None,
-            "eta_seconds":             None,
+            
+        all_incidents.append({
+            "id": f"SEED-{i:02d}", "type": inc_type["type"], "severity": inc_type["severity"],
+            "lat": zone["lat"], "lng": zone["lng"], "detect_confidence": detect,
+            "decision_confidence": decision, "status": status, "priority_score": round(inc_type["severity"] * decision, 2),
+            "timestamp": now - datetime.timedelta(seconds=i*10), "assigned_drone": None,
+            "zone_id": zone["id"], "zone_accident_frequency": zone_freq, "camera_id": zone["cam"]
         })
 
-    all_incidents = pinned + random_incidents
-    result = await db.incidents.insert_many(all_incidents)
-    print(f"✅ Inserted {len(result.inserted_ids)} incidents  (3 pinned + {random_count} random)")
 
-    silent_count  = sum(1 for i in random_incidents if i["status"] == "silent")
-    pending_count = sum(1 for i in random_incidents if i["status"] in ("pending", "queued"))
-    auto_count    = sum(1 for i in random_incidents if i["status"] == "auto")
-    print(f"   🔴 Silent:         {silent_count}")
-    print(f"   🟡 Pending/Queued: {pending_count}")
-    print(f"   🟢 Auto-dispatch:  {auto_count}")
+    # ── MERGE TEST INCIDENTS ───────────────────────────────────────────────
+    main_merge_id = "SEED-MAIN-MERGE"
+    merged_id = "SEED-MERGED"
+    merge_type = "fire"
+    merge_lat = 18.5700
+    merge_lng = 73.8000
 
-    # ── Matching audit trail ──────────────────────────────────────────────────
-    actions = [
-        "INCIDENT_RECEIVED_AUTO", "INCIDENT_RECEIVED_HUMAN", "AUTO_DISPATCH",
-        "HUMAN_OPERATOR_APPROVE", "DRONE_ON_SCENE", "DRONE_TASK_COMPLETE",
-    ]
-    drone_ids = [f"D{i}" for i in range(1, 16)]
-    audits = []
-    for inc in all_incidents:
-        for _ in range(random.randint(1, 3)):
-            audits.append({
-                "timestamp":           inc["timestamp"] + datetime.timedelta(seconds=random.randint(0, 120)),
-                "action":              random.choice(actions),
-                "incident_id":         inc["id"],
-                "drone_id":            random.choice(drone_ids),
-                "reason":              "System stress test trace.",
-                "priority_score":      inc["priority_score"],
-                "decision_confidence": inc["decision_confidence"],
-            })
+    # Main incident
+    all_incidents.append({
+        "id": main_merge_id, "type": merge_type, "severity": 8,
+        "lat": merge_lat, "lng": merge_lng, "detect_confidence": 0.7,
+        "decision_confidence": 0.7, "status": "auto", "priority_score": 5.6,
+        "timestamp": now, "assigned_drone": None,
+        "zone_id": "Z3", "zone_accident_frequency": 0.5, "camera_id": "CAM-KAT",
+        "merged_into": None
+    })
+    # Merged incident (very close to main)
+    all_incidents.append({
+        "id": merged_id, "type": merge_type, "severity": 8,
+        "lat": merge_lat + 0.0001, "lng": merge_lng + 0.0001, "detect_confidence": 0.6,
+        "decision_confidence": 0.6, "status": "auto", "priority_score": 4.8,
+        "timestamp": now, "assigned_drone": None,
+        "zone_id": "Z3", "zone_accident_frequency": 0.5, "camera_id": "CAM-KAT",
+        "merged_into": main_merge_id
+    })
 
-    audits.sort(key=lambda e: e["timestamp"], reverse=True)
-    result2 = await db.audit.insert_many(audits)
-    print(f"✅ Inserted {len(result2.inserted_ids)} audit entries")
-
+    await db.incidents.insert_many(all_incidents)
+    print(f"✅ Seeding Complete: {len(all_incidents)} UNIQUE zone-pinned incidents inserted (including merge test).")
     client.close()
-    print("\n🎉 Seed complete! Frontend will update on the next 5-second poll.")
-
 
 if __name__ == "__main__":
-    random_count = 20
-    if len(sys.argv) > 1:
-        try:
-            random_count = int(sys.argv[1])
-        except ValueError:
-            print(f"⚠️ Invalid count '{sys.argv[1]}', defaulting to 20.")
-    
-    asyncio.run(seed(random_count))
+    count = 11
+    if len(sys.argv) > 1: count = int(sys.argv[1])
+    asyncio.run(seed(count))

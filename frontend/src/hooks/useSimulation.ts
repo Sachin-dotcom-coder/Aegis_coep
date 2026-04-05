@@ -139,7 +139,7 @@ export function useSimulation() {
         const lowConfTop = !explicitPending
           ? fresh
               .filter(i =>
-                (i.detectionConfidence < 0.5 || i.decisionConfidence < 0.5) &&
+                (i.detectionConfidence < 0.5 && i.decisionConfidence < 0.5) &&
                 ['queued', 'auto', 'silent', 'pending'].includes(i.status) &&
                 !dismissedIds.current.has(i.id)
               )

@@ -1,5 +1,5 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def haversine(lat1, lon1, lat2, lon2):
     """Calculate distance in meters between two lat/lng coordinates"""
@@ -14,29 +14,22 @@ def haversine(lat1, lon1, lat2, lon2):
 
 async def dedup_or_merge(db, incident):
     """
-    Check if a similar incident exists within 200m and same type.
+    Check if a similar incident exists within 200m (regardless of type).
     If so, boosts its confidence using Multi-Cam bonus and returns its ID.
     
     Merge criteria:
-    - Same incident type (e.g., both "road_accident")
-    - Distance ≤ 200 meters
-    - Time window ≤ 5 minutes (to avoid merging unrelated incidents)
+    - Distance <= 200 meters
+    - Time window <= 1 minute
     """
-    from datetime import datetime, timedelta
-    
     # Fetch recent incidents (including human-reviewed ones within time window)
-    five_min_ago = datetime.utcnow() - timedelta(minutes=5)
+    one_min_ago = datetime.utcnow() - timedelta(minutes=1)
     cursor = db.incidents.find({
-        "status": {"$in": ["pending", "queued", "auto", "human"]},
-        "timestamp": {"$gte": five_min_ago}  # Within last 5 minutes
+        "status": {"$in": ["pending", "queued", "auto", "human", "review"]},
+        "timestamp": {"$gte": one_min_ago}  # Within last 1 minute
     })
     recent_incidents = await cursor.to_list(length=200)
     
     for existing in recent_incidents:
-        # Only merge incidents of same type
-        if existing.get("type") != incident.type:
-            continue
-            
         dist = haversine(incident.lat, incident.lng, existing['lat'], existing['lng'])
         if dist <= 200:
             # Match found within 200 meters and same type! Merge them.

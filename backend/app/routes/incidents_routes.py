@@ -33,6 +33,18 @@ async def create_incident(incident: Incident):
     # 3. Geo dedup — is this the same event as something within 200m?
     merged = await dedup_or_merge(db, incident)
     if merged:
+        # Save the merged incident with merged_into set to the main incident's id
+        incident.merged_into = merged
+        await db.incidents.insert_one(incident.dict())
+        # Optionally, you can also log this merge in the audit log
+        await db.audit.insert_one({
+            "timestamp": datetime.datetime.utcnow(),
+            "action": "INCIDENT_MERGED",
+            "incident_id": incident.id,
+            "merged_into": merged,
+            "priority_score": incident.priority_score,
+            "decision_confidence": incident.decision_confidence,
+        })
         return {"status": "merged", "incident_id": merged}
     
     # Auto-dispatch integration (if logic passes)
@@ -105,7 +117,14 @@ async def resolve_incident(incident_id: str):
     """Admin manually marks an incident as resolved, removing from active registry."""
     db = await get_db()
     await db.incidents.delete_one({"id": incident_id})
-    
+
+    # Wait a few seconds before deleting merged incidents (for frontend display)
+    import asyncio
+    async def delete_merged():
+        await asyncio.sleep(3)  # Show merged incidents for 3 seconds after main is resolved
+        await db.incidents.delete_many({"merged_into": incident_id})
+    asyncio.create_task(delete_merged())
+
     # Inform audit
     await db.audit.insert_one({
         "timestamp": datetime.datetime.utcnow(),
@@ -113,7 +132,7 @@ async def resolve_incident(incident_id: str):
         "incident_id": incident_id,
         "reason": "Admin marked incident as resolved."
     })
-    
+
     return {"status": "resolved"}
 
 @router.post("/{incident_id}/cancel")

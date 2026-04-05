@@ -23,6 +23,9 @@ class Incident(BaseModel):
     lng: Optional[float] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
+    # Merging
+    merged_into: Optional[str] = None  # If set, this incident is merged into another (main) incident
     
     def __init__(self, **data):
         super().__init__(**data)

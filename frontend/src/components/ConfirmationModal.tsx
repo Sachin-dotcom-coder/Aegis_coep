@@ -30,8 +30,10 @@ export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
 
   useEffect(() => {
     if (countdown <= 0) {
-      if (isSilent) onReject(incident.id);
-      else onConfirm(incident.id);
+      // ── New Policy: Auto-Abort ──
+      // If the operator doesn't explicitly 'Deploy', we reject the incident.
+      // This ensures drones are only sent on high-confidence (auto) or manually confirmed (human) alerts.
+      onReject(incident.id);
       return;
     }
     const t = setTimeout(() => setCountdown(c => c - 1), 1000);

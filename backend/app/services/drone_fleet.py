@@ -250,9 +250,13 @@ class DroneFleet:
         print("🧹 FLEET RESET: All queues cleared and drones returned to bases.")
 
     def enqueue_incident(self, incident: dict):
-        if not any(i.get("id") == incident.get("id") for i in self.pending_queue):
+        existing = next((i for i in self.pending_queue if i.get("id") == incident.get("id")), None)
+        if existing:
+            # Update status/data if already in queue
+            existing.update(incident)
+        else:
             self.pending_queue.append(incident)
-            self.sort_pending_queue()
+        self.sort_pending_queue()
 
     def get_charging_count(self, station):
         return sum(1 for d in self.drones.values() if d.target == station and d.state == DroneState.CHARGING)
@@ -295,7 +299,9 @@ class DroneFleet:
             if d.state not in (DroneState.IDLE, DroneState.EN_ROUTE):
                 continue
             if not self.has_enough_battery(d, lat, lng):
-                print(f"⚠️ Drone {d.id} disqualified for ({lat:.4f}, {lng:.4f}): battery {d.battery:.0f}%")
+                dist_inc = math.sqrt((d.lat - lat)**2 + (d.lng - lng)**2)
+                cost_est = (dist_inc / DRONE_SPEED_LATLNG) * BATTERY_DRAIN_RATE
+                print(f"⚠️ Drone {d.id} disqualified: Mission cost ~{cost_est:.1f}% battery (Current: {d.battery:.1f}%)")
                 continue
             candidates.append(d)
 
@@ -340,12 +346,12 @@ class DroneFleet:
                     from app.db.mongo import get_db
                     db = await get_db()
                     if db is not None:
-                        # ── SILENT INCIDENT CLEANUP ──────────────────────────
-                        # Automatically purge 'silent' (low confidence) incidents
-                        # that haven't been acted upon within 30 seconds.
-                        expire_threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=30)
+                        # ── SILENT & REVIEW CLEANUP ──────────────────────────
+                        # Automatically purge low-confidence incidents
+                        # that haven't been acted upon within 15 seconds.
+                        expire_threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=15)
                         del_result = await db.incidents.delete_many({
-                            "status": "silent",
+                            "status": {"$in": ["silent", "review"]},
                             "timestamp": {"$lt": expire_threshold}
                         })
                         if del_result.deleted_count > 0:
@@ -355,8 +361,15 @@ class DroneFleet:
                         cursor = db.incidents.find({"status": {"$in": ["queued", "pending", "auto"]}, "assigned_drone": None})
                         added = 0
                         async for doc in cursor:
-                            if doc.get("id") and not any(q.get("id") == doc["id"] for q in self.pending_queue) and doc["id"] not in self.active_mission_ids:
-                                doc.pop("_id", None)
+                            if not doc.get("id"): continue
+                            if doc["id"] in self.active_mission_ids: continue
+                            
+                            doc.pop("_id", None)
+                            existing = next((q for q in self.pending_queue if q.get("id") == doc["id"]), None)
+                            if existing:
+                                # Refresh status for existing pending->auto transitions
+                                existing.update(doc)
+                            else:
                                 self.pending_queue.append(doc)
                                 added += 1
                         if added:
@@ -374,7 +387,7 @@ class DroneFleet:
                             if event_name == "DRONE_TASK_COMPLETE" and inc_id in self.active_mission_ids:
                                 self.active_mission_ids.remove(inc_id)
                             if audit_fn: asyncio.create_task(audit_fn(event_name, inc_id, drone.id))
-                self.process_queue(audit_fn)
+                await self.process_queue(audit_fn)
                 await broadcast_fn(json.dumps([d.to_json() for d in self.drones.values()]))
             except Exception as e:
                 print(f"❌ Fleet Tick Error: {e}")
@@ -383,7 +396,7 @@ class DroneFleet:
     def _is_at_station(self, drone):
         return drone.target in self.stations and drone._arrived()
 
-    def process_queue(self, audit_fn=None):
+    async def process_queue(self, audit_fn=None):
         if not self.pending_queue: return
         self.sort_pending_queue()
         
@@ -417,14 +430,12 @@ class DroneFleet:
                         break
             
             if already_covered:
-                print(f"🛑 SWARM PREVENTED: Incident {inc_id} covered by active drone. Dropping.")
+                print(f"🛑 SWARM PREVENTED: Incident {inc_id} covered by active drone. Purging redundant log.")
                 self.pending_queue.remove(incident)
-                async def mark_merged(i_id=inc_id):
-                    from app.db.mongo import get_db
-                    db = await get_db()
-                    if db is not None:
-                        await db.incidents.update_one({"id": i_id}, {"$set": {"status": "merged"}})
-                asyncio.create_task(mark_merged())
+                from app.db.mongo import get_db
+                db = await get_db()
+                if db is not None:
+                    await db.incidents.delete_one({"id": inc_id})
                 continue
 
             best_drone = self.best_drone_for(inc_lat, inc_lng, exclude_ids=drones_dispatched_this_tick)
@@ -464,5 +475,8 @@ class DroneFleet:
                     from app.db.mongo import get_db
                     db = await get_db()
                     if db is not None:
+                        # ── MERGE PURGE ──────────────────────────────────
+                        # Once a drone is sent to the scene, delete all redundant merged records
+                        await db.incidents.delete_many({"merged_into": inc_id})
                         await db.incidents.update_one({"id": inc_id}, {"$set": {"status": "en_route", "assigned_drone": best_drone.id, "eta_seconds": eta}})
                 asyncio.create_task(sync_db())
