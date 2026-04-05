@@ -18,7 +18,8 @@ export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
 
   const videoSrc = useMemo(() => {
     if (incident.type === 'road_accident') {
-      const clip = ROAD_ACCIDENT_CLIPS[Math.floor(Math.random() * ROAD_ACCIDENT_CLIPS.length)];
+      const idNum = parseInt(incident.id.replace(/[^0-9]/g, '')) || 0;
+      const clip = ROAD_ACCIDENT_CLIPS[idNum % ROAD_ACCIDENT_CLIPS.length];
       return `/videos/${clip}`;
     }
     if (incident.type === 'fire') {

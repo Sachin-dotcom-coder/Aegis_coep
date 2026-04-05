@@ -522,19 +522,36 @@ export function CityMap({
             </div>
 
             <div className="w-full h-full overflow-hidden">
-              <video
-                autoPlay
-                loop
-                muted
-                playsInline
-                src="/video.mp4"
-                style={{
-                  transformOrigin: 'center',
-                  transform: `scale(${videoZoom}) translate(${videoOffset.x}px, ${videoOffset.y}px)`,
-                  transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
-                }}
-                className="w-full h-full object-cover opacity-80"
-              />
+              {(() => {
+                const drone = drones.find(d => d.id === activeLiveFeed);
+                const incident = incidents.find(i => i.id === drone?.targetIncidentId);
+                
+                let s = "/video.mp4";
+                if (incident?.type === 'road_accident') {
+                  // Stable selection based on incident ID to prevent flickering
+                  const idNum = parseInt(incident.id.replace(/[^0-9]/g, '')) || 0;
+                  s = (idNum % 2 === 0) ? "/video.mp4" : "/video2.mp4";
+                } else if (incident?.type === 'fire') {
+                  s = "/video3.mp4";
+                }
+
+                return (
+                  <video
+                    key={s} // Force reload only when the target actually changes
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    src={s}
+                    style={{
+                      transformOrigin: 'center',
+                      transform: `scale(${videoZoom}) translate(${videoOffset.x}px, ${videoOffset.y}px)`,
+                      transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                    }}
+                    className="w-full h-full object-cover opacity-80"
+                  />
+                );
+              })()}
             </div>
           </div>
         </div>
