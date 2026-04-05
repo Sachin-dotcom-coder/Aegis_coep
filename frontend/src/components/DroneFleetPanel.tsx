@@ -7,12 +7,13 @@ import { Drone3DView } from './Drone3DView';
 interface Props {
   drones: Drone[];
   expanded?: boolean;
+  initialView?: { zoneId: string; idx: number } | null;
   onClose?: () => void;
 }
 
-export function DroneFleetPanel({ drones, expanded: externalExpanded, onClose }: Props) {
+export function DroneFleetPanel({ drones, expanded: externalExpanded, initialView, onClose }: Props) {
   const [expandedZone, setExpandedZone] = useState<string | null>(null);
-  const [selectedUnitView, setSelectedUnitView] = useState<{ zoneId: string; idx: number } | null>(null);
+  const [selectedUnitView, setSelectedUnitView] = useState<{ zoneId: string; idx: number } | null>(initialView || null);
 
   const expanded = !!externalExpanded;
 
@@ -58,10 +59,8 @@ export function DroneFleetPanel({ drones, expanded: externalExpanded, onClose }:
                   onClick={() => setSelectedUnitView({ zoneId: zone.id, idx })}
                   className="group flex items-center justify-between border-b border-white/5 py-8 px-8 transition-all duration-300 cursor-pointer hover:bg-white/[0.03] rounded-3xl"
                 >
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-mono text-white/20 uppercase tracking-[0.6em] mb-2">Station 0{idx}</span>
                     <h4 className="text-2xl font-black text-white/40 group-hover:text-white transition-all tracking-[0.2em] uppercase italic">{zone.name}</h4>
-                  </div>
+
                   <div className="text-right">
                     <span className="text-2xl font-black text-white/10 group-hover:text-white/60 transition-all font-mono italic tracking-widest uppercase">View Units</span>
                   </div>

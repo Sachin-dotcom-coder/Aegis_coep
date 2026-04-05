@@ -2,11 +2,11 @@ import { DispatchZone, Drone, Incident, IncidentType, AuditEntry, AuditAction, G
 
 // Pune dispatch zones
 export const DISPATCH_ZONES: DispatchZone[] = [
-  { id: 'z1', name: 'Bhosari Industrial', position: { lat: 18.6200, lng: 73.8300 }, riskMultiplier: 1.6, reliability: 0.85, color: '#ffffff' },
-  { id: 'z2', name: 'Kharadi HQ', position: { lat: 18.5600, lng: 73.9400 }, riskMultiplier: 1.4, reliability: 0.90, color: '#ffffff' },
-  { id: 'z3', name: 'Hinjewadi IT', position: { lat: 18.5900, lng: 73.7400 }, riskMultiplier: 1.5, reliability: 0.88, color: '#ffffff' },
-  { id: 'z4', name: 'Katraj Bypass', position: { lat: 18.4600, lng: 73.8500 }, riskMultiplier: 1.4, reliability: 0.86, color: '#ffffff' },
-  { id: 'z5', name: 'Paud Valley', position: { lat: 18.4500, lng: 73.7000 }, riskMultiplier: 1.3, reliability: 0.92, color: '#ffffff' },
+  { id: 'z1', name: 'UNIT 01 — Bhosari Industrial', position: { lat: 18.6200, lng: 73.8300 }, riskMultiplier: 1.6, reliability: 0.85, color: '#ffffff' },
+  { id: 'z2', name: 'UNIT 02 — Kharadi HQ', position: { lat: 18.5600, lng: 73.9400 }, riskMultiplier: 1.4, reliability: 0.90, color: '#ffffff' },
+  { id: 'z3', name: 'UNIT 03 — Hinjewadi IT', position: { lat: 18.5900, lng: 73.7400 }, riskMultiplier: 1.5, reliability: 0.88, color: '#ffffff' },
+  { id: 'z4', name: 'UNIT 04 — Katraj Bypass', position: { lat: 18.4600, lng: 73.8500 }, riskMultiplier: 1.4, reliability: 0.86, color: '#ffffff' },
+  { id: 'z5', name: 'UNIT 05 — Paud Valley', position: { lat: 18.4500, lng: 73.7000 }, riskMultiplier: 1.3, reliability: 0.92, color: '#ffffff' },
 ];
 
 const INCIDENT_TYPES: { type: IncidentType; severity: number; label: string }[] = [

@@ -16,7 +16,7 @@ const Index = () => {
   const [booted, setBooted] = useState(false);
   const [activeLiveFeed, setActiveLiveFeed] = useState<string | null>(null);
   const [videoMaximized, setVideoMaximized] = useState(false);
-  const [showFleetModal, setShowFleetModal] = useState(false);
+  const [showFleetModal, setShowFleetModal] = useState<{ zoneId: string; idx: number } | boolean>(false);
   const sim = useSimulation();
   const bootRef = useRef(sim.boot);
   bootRef.current = sim.boot;
@@ -34,14 +34,16 @@ const Index = () => {
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       <Navbar drones={sim.drones} incidents={sim.incidents} />
 
-      <div className="flex-1 flex overflow-hidden min-h-0" style={{ height: 'calc(100vh - 16rem)' }}>
-        <div className="flex-[40] min-w-0 min-h-0 p-2" style={{ height: '100%' }}>
-          <div className="relative h-full w-full min-w-0 min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left Column: Map + Audit Log */}
+        <div className="flex-[40] min-w-0 min-h-0 p-2 flex flex-col gap-2">
+          <div className="relative flex-1 w-full min-w-0 min-h-0">
             <CityMap
               drones={sim.drones}
               incidents={sim.incidents}
               onIncidentClick={sim.setSelectedIncident}
               onManualDispatch={sim.manualDispatch}
+              onDispatchClick={(zoneId, idx) => setShowFleetModal({ zoneId, idx })}
               onAbort={sim.abortDrone}
               activeLiveFeed={activeLiveFeed}
               setActiveLiveFeed={setActiveLiveFeed}
@@ -49,9 +51,14 @@ const Index = () => {
               setVideoMaximized={setVideoMaximized}
             />
           </div>
+          
+          <div className="h-64 shrink-0">
+            <AuditLog entries={sim.auditLog} />
+          </div>
         </div>
 
-        <div className="flex-[60] w-full max-w-2xl min-w-[30rem] min-h-0 flex flex-col p-2 pl-0 gap-1.5" style={{ height: '100%' }}>
+        {/* Right Column: Mission Control & Alerts */}
+        <div className="flex-[60] w-full max-w-2xl min-w-[30rem] min-h-0 flex flex-col p-2 pl-0 gap-1.5">
           <ManualCommandPanel onManualDispatch={sim.manualDispatch} />
 
           <button
@@ -67,7 +74,7 @@ const Index = () => {
             </div>
           </button>
 
-          <div className="flex-[6] basis-0 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex-[5] basis-0 min-h-0 overflow-hidden flex flex-col">
             <AlertsPanel
               incidents={sim.incidents}
               onSelect={sim.setSelectedIncident}
@@ -76,20 +83,37 @@ const Index = () => {
             />
           </div>
 
-          <div className="flex-[4] basis-0 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex-[7] basis-0 min-h-0 overflow-hidden flex flex-col">
             <ActiveMissionsPanel drones={sim.drones} onOpenFeed={setActiveLiveFeed} />
           </div>
         </div>
       </div>
 
-      {/* Decision Modal Overlay */}
+      {/* Decision Modal Overlay - Now Centered & Contained as requested */}
       {sim.selectedIncident && (
-        <div className="fixed inset-0 z-[50000] flex items-center justify-center p-20 bg-black/80 backdrop-blur-3xl animate-in fade-in duration-500">
-          <div className="relative w-full max-w-4xl h-[80vh] flex flex-col bg-black border-4 border-white/10 rounded-[40px] overflow-hidden shadow-[0_60px_150px_rgba(0,0,0,1)]">
-            <div className="absolute top-8 right-8 z-50">
-              <button onClick={() => sim.setSelectedIncident(null)} className="p-4 bg-white/10 hover:bg-red-600 rounded-2xl transition-all text-white"><X size={24} /></button>
+        <div className="fixed inset-0 z-[50000] flex items-center justify-center bg-black/60 backdrop-blur-2xl animate-in fade-in duration-300">
+          <div className="relative w-full max-w-6xl h-[70vh] flex flex-col bg-black/80 border-2 border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.8)] animate-in zoom-in-95 duration-300">
+            <div className="absolute top-8 right-8 z-[50001]">
+              <button 
+                onClick={() => sim.setSelectedIncident(null)} 
+                className="p-3 bg-white/5 hover:bg-red-600/20 text-white hover:text-red-500 rounded-2xl transition-all border border-white/5 group active:scale-95 shadow-xl"
+              >
+                <X size={24} className="group-hover:rotate-90 transition-all duration-500" />
+              </button>
             </div>
-            <DecisionPanel incident={sim.selectedIncident} />
+            <div className="flex-1 w-full min-h-0">
+              <DecisionPanel
+                incident={sim.selectedIncident}
+                onApprove={(id) => {
+                  sim.confirmIncident(id);
+                  sim.setSelectedIncident(null);
+                }}
+                onReject={(id) => {
+                  sim.rejectIncident(id);
+                  sim.setSelectedIncident(null);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -99,14 +123,10 @@ const Index = () => {
         <DroneFleetPanel
           drones={sim.drones}
           expanded={true}
+          initialView={typeof showFleetModal === 'object' ? showFleetModal : null}
           onClose={() => setShowFleetModal(false)}
         />
       )}
-
-      {/* Audit log */}
-      <div className="h-48 p-2 pt-0 shrink-0">
-        <AuditLog entries={sim.auditLog} />
-      </div>
 
       {sim.pendingConfirmation && (
         <ConfirmationModal

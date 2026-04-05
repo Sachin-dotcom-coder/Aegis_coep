@@ -29,10 +29,10 @@ export function AuditLog({ entries }: Props) {
     }`}>
       <div className="flex items-center gap-3 mb-6">
         <ScrollText size={expanded ? 24 : 13} className="text-white/60" />
-        <h3 className={`${expanded ? 'text-2xl' : 'text-xs'} font-semibold tracking-widest text-white uppercase font-sans`}>
+        <h3 className={`${expanded ? 'text-2xl' : 'text-sm'} font-semibold tracking-widest text-white uppercase font-sans`}>
           System Audit Log
         </h3>
-        <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[10px]'} ml-auto font-mono text-white/40 uppercase tracking-widest`}>
+        <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[13px]'} ml-auto font-mono text-white/40 uppercase tracking-widest`}>
           {entries.length} LOGGED EVENTS
         </span>
         <button 
@@ -44,14 +44,14 @@ export function AuditLog({ entries }: Props) {
       </div>
 
       <div className={`flex-1 overflow-y-auto scrollbar-thin ${expanded ? 'space-y-2' : 'space-y-0.5'}`}>
-        {entries.slice(0, expanded ? 100 : 50).map(entry => (
+        {entries.slice(0, 100).map(entry => (
           <div 
             key={entry.id} 
             className={`flex items-center gap-6 font-mono border-b border-white/5 last:border-0 ${
-              expanded ? 'py-4 text-sm' : 'py-1 text-[10px]'
+              expanded ? 'py-4 text-sm' : 'py-2 text-[13px]'
             }`}
           >
-            <span className="text-white/30 w-24 shrink-0 font-bold">
+            <span className="text-white/30 w-32 shrink-0 font-bold">
               {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false })}
             </span>
             <span className={`w-48 shrink-0 font-bold tracking-tighter ${actionStyle(entry.action)}`}>

@@ -12,7 +12,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        mono: ['"JetBrains Mono"', '"SF Mono"', '"Fira Code"', 'monospace'],
+        sans: ['"Inter"', '"Space Grotesk"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"IBM Plex Mono"', 'monospace'],
+        display: ['"Space Grotesk"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
