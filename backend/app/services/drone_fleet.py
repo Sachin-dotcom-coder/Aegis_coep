@@ -1,4 +1,4 @@
-import asyncio, math, json
+import asyncio, math, json, datetime
 from enum import Enum
 from app.services.priority import calculate_dynamic_priority
 
@@ -112,6 +112,22 @@ class Drone:
 
     def _move_toward(self, target, other_drones):
         if not target: return
+
+        # ── EMERGENCY NFZ ESCAPE ─────────────────────────────────────────────
+        # If the drone is already inside a no-fly zone (shouldn't happen normally
+        # but can occur at startup or after a coord edge-case), push radially
+        # outward toward the zone boundary each tick until it escapes.
+        for zlat, zlng, zrad in NO_FLY_ZONES:
+            d = math.sqrt((self.lat - zlat)**2 + (self.lng - zlng)**2)
+            if d < zrad:
+                if d > 1e-9:
+                    self.lat += (self.lat - zlat) / d * DRONE_SPEED_LATLNG
+                    self.lng += (self.lng - zlng) / d * DRONE_SPEED_LATLNG
+                else:                        # dead-centre: push north
+                    self.lat += DRONE_SPEED_LATLNG
+                return
+        # ────────────────────────────────────────────────────────────────────
+
         dlat = target[0] - self.lat
         dlng = target[1] - self.lng
         dist = math.sqrt(dlat**2 + dlng**2)
@@ -123,35 +139,50 @@ class Drone:
         next_lat = self.lat + (dlat / dist) * move_dist
         next_lng = self.lng + (dlng / dist) * move_dist
 
+        # Only check against MOVING drones (EN_ROUTE / RECALLED).
+        # Parked drones (IDLE, CHARGING, ON_SCENE) share a station and should
+        # never block departing/returning drones from passing.
+        # Threshold: 0.0004° ≈ 45 m. 
+        # Previously 0.002° (220 m) was causing gridlock for multiple drones.
+        SEPARATION = 0.0004
+        airborne_states = (DroneState.EN_ROUTE, DroneState.RECALLED)
+
         collision_risk = False
         for od in other_drones:
             if od.id == self.id: continue
-            # Maintain 50m (0.0005 deg) exclusion boundary between airborne drones
-            if math.sqrt((next_lat - od.lat)**2 + (next_lng - od.lng)**2) < 0.0005:
+            if od.state not in airborne_states: continue          # skip parked drones
+            # Ignore drones that are perfectly stacked (likely launching from the same station)
+            dist_to_other = math.sqrt((next_lat - od.lat)**2 + (next_lng - od.lng)**2)
+            if 1e-7 < dist_to_other < SEPARATION:
                 collision_risk = True
                 break
 
         if is_in_nfz(next_lat, next_lng) or collision_risk:
-            for angle in [45, -45, 90, -90, 135, -135]:
+            # Try progressively wider angles to find an escape path around the NFZ/collision
+            for angle in [30, -30, 60, -60, 90, -90, 120, -120]:
                 rad = math.radians(angle)
                 rot_lat = (dlat * math.cos(rad) - dlng * math.sin(rad))
                 rot_lng = (dlat * math.sin(rad) + dlng * math.cos(rad))
                 mag = math.sqrt(rot_lat**2 + rot_lng**2)
+                if mag < 1e-9: continue
                 try_lat = self.lat + (rot_lat / mag) * move_dist
                 try_lng = self.lng + (rot_lng / mag) * move_dist
-                
+
                 if not is_in_nfz(try_lat, try_lng):
                     dodge_collide = False
                     for od in other_drones:
-                        if od.id != self.id and math.sqrt((try_lat - od.lat)**2 + (try_lng - od.lng)**2) < 0.0005:
+                        if od.id == self.id: continue
+                        if od.state not in airborne_states: continue  # skip parked
+                        dist_to_other = math.sqrt((try_lat - od.lat)**2 + (try_lng - od.lng)**2)
+                        if 1e-7 < dist_to_other < SEPARATION:
                             dodge_collide = True
                             break
                     if not dodge_collide:
                         self.lat, self.lng = try_lat, try_lng
                         return
-            # Blocked: hover in place
+            # All angles blocked — hover in place this tick
             return
-            
+
         self.lat, self.lng = next_lat, next_lng
 
     def _arrived(self):
@@ -196,6 +227,28 @@ class DroneFleet:
         self.pending_queue = [] 
         self.active_mission_ids = set()
 
+    def reset_fleet(self):
+        """Resets the entire fleet status for a clean start."""
+        self.pending_queue = []
+        self.active_mission_ids = set()
+        
+        # Reset each drone to its base station
+        drone_number = 1
+        for station in self.stations:
+            for _ in range(3):
+                did = f"D{drone_number}"
+                drone = self.drones.get(did)
+                if drone:
+                    drone.lat, drone.lng = station
+                    drone.target = station
+                    drone.state = DroneState.IDLE
+                    drone.battery = 100.0
+                    drone.assigned_incident = None
+                    drone.assigned_incident_obj = None
+                    drone.assigned_priority = 0.0
+                drone_number += 1
+        print("🧹 FLEET RESET: All queues cleared and drones returned to bases.")
+
     def enqueue_incident(self, incident: dict):
         if not any(i.get("id") == incident.get("id") for i in self.pending_queue):
             self.pending_queue.append(incident)
@@ -214,6 +267,9 @@ class DroneFleet:
             self.pending_queue.append(old_inc)
 
     def has_enough_battery(self, drone, dest_lat, dest_lng):
+        # Hard floor: never dispatch a critically low drone regardless of distance
+        if drone.battery < 25.0:
+            return False
         dist_to_inc = math.sqrt((drone.lat - dest_lat)**2 + (drone.lng - dest_lng)**2)
         station = self.find_nearest_station(dest_lat, dest_lng)
         dist_to_station = math.sqrt((dest_lat - station[0])**2 + (dest_lng - station[1])**2)
@@ -222,23 +278,36 @@ class DroneFleet:
         return_cost = (dist_to_station / DRONE_SPEED_LATLNG) * BATTERY_DRAIN_RATE
         return drone.battery > (req_cost + hover_cost + return_cost)
 
-    def best_drone_for(self, lat, lng):
+    def best_drone_for(self, lat, lng, exclude_ids=None):
+        """Return the best available drone for a new mission.
+        Only IDLE drones are eligible for fresh dispatch.
+        EN_ROUTE drones are included ONLY as hijack candidates (lower priority).
+        RECALLED and CHARGING drones are excluded — they must complete their
+        return/charge cycle before taking new missions.
+        """
         candidates = []
         for d in self.drones.values():
-            if d.state not in (DroneState.IDLE, DroneState.CHARGING, DroneState.RECALLED, DroneState.EN_ROUTE):
+            if exclude_ids and d.id in exclude_ids:
+                continue
+            # RECALLED = heading home on low battery — do NOT intercept
+            # CHARGING = actively charging — let it finish
+            # ON_SCENE = already doing a job
+            if d.state not in (DroneState.IDLE, DroneState.EN_ROUTE):
                 continue
             if not self.has_enough_battery(d, lat, lng):
-                print(f"⚠️ Drone {d.id} disqualified for ({lat}, {lng}): Not enough battery.")
+                print(f"⚠️ Drone {d.id} disqualified for ({lat:.4f}, {lng:.4f}): battery {d.battery:.0f}%")
                 continue
             candidates.append(d)
-            
+
         if not candidates:
-            print(f"⚠️ Fleet WARNING: No drones available to dispatch to ({lat}, {lng})! All disqualified.")
+            if not exclude_ids: # only print warning if truly no drones are available
+                print(f"⚠️ Fleet WARNING: No drones available to dispatch to ({lat:.4f}, {lng:.4f})!")
             return None
         def score_drone(d):
             nfz_dist = get_nfz_aware_distance((d.lat, d.lng), (lat, lng))
             dist_sq = nfz_dist**2
-            penalty = 0.006 if d.state == DroneState.EN_ROUTE else 0.0
+            # Heavy penalty for EN_ROUTE drones (prefer truly idle ones)
+            penalty = 0.02 if d.state == DroneState.EN_ROUTE else 0.0
             battery_bias = (100.0 - d.battery) * 0.0001
             return dist_sq + penalty + battery_bias
         return min(candidates, key=score_drone)
@@ -271,11 +340,27 @@ class DroneFleet:
                     from app.db.mongo import get_db
                     db = await get_db()
                     if db is not None:
+                        # ── SILENT INCIDENT CLEANUP ──────────────────────────
+                        # Automatically purge 'silent' (low confidence) incidents
+                        # that haven't been acted upon within 30 seconds.
+                        expire_threshold = datetime.datetime.utcnow() - datetime.timedelta(seconds=30)
+                        del_result = await db.incidents.delete_many({
+                            "status": "silent",
+                            "timestamp": {"$lt": expire_threshold}
+                        })
+                        if del_result.deleted_count > 0:
+                            print(f"🧹 PURGE: Cleared {del_result.deleted_count} expired silent incidents.")
+                        # ───────────────────────────────────────────────────
+
                         cursor = db.incidents.find({"status": {"$in": ["queued", "pending", "auto"]}, "assigned_drone": None})
+                        added = 0
                         async for doc in cursor:
                             if doc.get("id") and not any(q.get("id") == doc["id"] for q in self.pending_queue) and doc["id"] not in self.active_mission_ids:
                                 doc.pop("_id", None)
                                 self.pending_queue.append(doc)
+                                added += 1
+                        if added:
+                            print(f"📥 DB SYNC: Loaded {added} new incidents into queue. Queue size: {len(self.pending_queue)}")
                     last_db_sync = loop_time
                 for drone in self.drones.values():
                     if drone.state == DroneState.IDLE and drone.battery < 100.0 and self._is_at_station(drone):
@@ -301,11 +386,19 @@ class DroneFleet:
     def process_queue(self, audit_fn=None):
         if not self.pending_queue: return
         self.sort_pending_queue()
+        
+        # Track drones picked IN THIS TICK to avoid multi-incident overwriting
+        drones_dispatched_this_tick = set()
+
         for incident in list(self.pending_queue):
+            # 'pending' status = needs human operator approval before dispatch.
+            # Only 'auto' and 'queued' incidents should be autonomously dispatched.
+            if incident.get('status') == 'pending' or incident.get('status') == 'silent':
+                continue
             inc_priority = incident.get('priority_score', 0)
             inc_id = incident.get('id', 'N/A')
             
-            # Robust extraction of coordinates (avoids NoneType errors when keys exist but equal None)
+            # Robust extraction of coordinates
             raw_lat = incident.get('lat')
             raw_lng = incident.get('lng')
             if raw_lat is None: raw_lat = incident.get('latitude')
@@ -314,7 +407,7 @@ class DroneFleet:
             inc_lat = float(raw_lat) if raw_lat is not None else 0.0
             inc_lng = float(raw_lng) if raw_lng is not None else 0.0
             
-            # Prevent swarm dispatch for concurrently created duplicate incidents
+            # Prevent swarm dispatch
             already_covered = False
             for d in self.drones.values():
                 if d.state in (DroneState.EN_ROUTE, DroneState.ON_SCENE) and hasattr(d, 'target') and d.target:
@@ -334,19 +427,35 @@ class DroneFleet:
                 asyncio.create_task(mark_merged())
                 continue
 
-            best_drone = self.best_drone_for(inc_lat, inc_lng)
+            best_drone = self.best_drone_for(inc_lat, inc_lng, exclude_ids=drones_dispatched_this_tick)
             if best_drone:
+                drones_dispatched_this_tick.add(best_drone.id)
                 if best_drone.state == DroneState.EN_ROUTE:
                     if inc_priority < best_drone.assigned_priority + 2: continue 
-                    print(f"🚀 MISSION HIJACK: Drone {best_drone.id} diverted to {inc_id}")
+                    
+                    # ── HIJACK RE-QUEUE LOGIC ────────────────────────────────
+                    # If we divert a drone, its OLD incident must be re-queued in DB
+                    # so another drone can eventually pick it up.
+                    old_inc_id = best_drone.assigned_incident
+                    if old_inc_id:
+                        print(f"🚀 MISSION HIJACK: Drone {best_drone.id} diverted from {old_inc_id} to {inc_id}")
+                        if old_inc_id in self.active_mission_ids:
+                            self.active_mission_ids.remove(old_inc_id)
+                        
+                        async def requeue_old(oid=old_inc_id):
+                            from app.db.mongo import get_db
+                            db = await get_db()
+                            if db is not None:
+                                await db.incidents.update_one({"id": oid}, {"$set": {"status": "queued", "assigned_drone": None}})
+                        asyncio.create_task(requeue_old())
                 elif best_drone.state == DroneState.RECALLED:
                     print(f"🔄 MISSION DIVERT: Homebound {best_drone.id} intercepted for {inc_id}!")
                 else:
                     print(f"🚀 MISSION START: Drone {best_drone.id} dispatched to {inc_id}")
+                
                 dist = get_nfz_aware_distance((best_drone.lat, best_drone.lng), (inc_lat, inc_lng))
                 eta = int(dist / DRONE_SPEED_LATLNG)
                 best_drone.dispatch(inc_lat, inc_lng, incident, inc_priority)
-                # Ensure the mission_dist is correctly set in dispatch as the awareness dist
                 best_drone.mission_dist = dist
                 self.active_mission_ids.add(inc_id)
                 self.pending_queue.remove(incident)

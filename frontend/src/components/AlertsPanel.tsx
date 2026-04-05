@@ -25,13 +25,8 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
       expanded ? 'fixed inset-0 z-[20000] bg-black/95 backdrop-blur-3xl p-10' : 'h-full p-4 bg-black/40 backdrop-blur-xl'
       }`}>
       <div className="flex items-center gap-3 mb-6">
-<<<<<<< Updated upstream
-        <AlertTriangle size={expanded ? 24 : 16} className="text-white/60" />
-        <h3 className={`${expanded ? 'text-2xl' : 'text-[15px]'} font-semibold tracking-widest text-white uppercase font-sans`}>
-=======
         <AlertTriangle size={expanded ? 24 : 13} className="text-white/60" />
         <h3 className={`${expanded ? 'text-4xl' : 'text-sm'} font-black tracking-[0.25em] text-transparent bg-clip-text bg-gradient-to-r from-white via-white/80 to-white/40 uppercase font-display drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]`}>
->>>>>>> Stashed changes
           Active Alerts
         </h3>
         <span className={`${expanded ? 'text-lg px-4 py-1' : 'text-[13px] px-2 py-0.5'} ml-auto rounded-full bg-white/10 text-white font-mono`}>

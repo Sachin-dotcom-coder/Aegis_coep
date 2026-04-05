@@ -27,6 +27,9 @@ export function useSimulation() {
   // Incident needing human confirmation (status === 'pending')
   const [pendingConfirmation, setPendingConfirmation] = useState<Incident | null>(null);
 
+  // Track IDs already actioned this session — prevents re-popping the same modal
+  const dismissedIds = useRef<Set<string>>(new Set());
+
   const wsRef = useRef<WebSocket | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -121,13 +124,38 @@ export function useSimulation() {
         const fresh = await api.getIncidents();
         setIncidents(fresh);
 
-        // Surface new 'pending' incidents for confirmation modal
-        const pending = fresh.find(i => i.status === 'pending');
+        // Surface incidents needing human confirmation via the modal.
+        // Priority 1: backend-flagged 'pending' incidents (explicit human-review request)
+        // Priority 2: highest-priority queued incident with decisionConfidence < 0.5
+        //             (low-confidence detections that need operator approval before dispatch)
+        const explicitPending = fresh.find(
+          i => i.status === 'pending' && !dismissedIds.current.has(i.id)
+        );
+
+        // Catch low-confidence incidents in ANY waiting status:
+        // 'pending' = decision_confidence 0.2–0.5 (human gate)
+        // 'silent'  = decision_confidence < 0.2 (fully suppressed, but detect_confidence ~0.3–0.49)
+        // 'queued' / 'auto' = edge cases
+        const lowConfTop = !explicitPending
+          ? fresh
+              .filter(i =>
+                (i.detectionConfidence < 0.5 || i.decisionConfidence < 0.5) &&
+                ['queued', 'auto', 'silent', 'pending'].includes(i.status) &&
+                !dismissedIds.current.has(i.id)
+              )
+              .sort((a, b) => b.priorityScore - a.priorityScore)[0] ?? null
+          : null;
+
+        const nextConfirmation = explicitPending ?? lowConfTop ?? null;
+
         setPendingConfirmation(prev => {
-          // Only update if it's a NEW pending incident we haven't shown yet
-          if (pending && (!prev || prev.id !== pending.id)) return pending;
-          // If the previous pending was resolved/approved, clear it
-          if (prev && !fresh.find(i => i.id === prev.id && i.status === 'pending')) return null;
+          // Show the modal for a new confirmation candidate
+          if (nextConfirmation && (!prev || prev.id !== nextConfirmation.id)) return nextConfirmation;
+          // Clear if the previously shown incident is no longer actionable
+          if (prev && !fresh.find(i =>
+            i.id === prev.id &&
+            ['pending', 'queued', 'auto', 'silent'].includes(i.status)
+          )) return null;
           return prev;
         });
 
@@ -168,6 +196,8 @@ export function useSimulation() {
 
   /** Operator approves a pending incident → dispatch drone */
   const confirmIncident = useCallback(async (incidentId: string) => {
+    dismissedIds.current.add(incidentId);   // never re-surface this incident
+    setIncidents(prev => prev.filter(i => i.id !== incidentId)); // Immediate UI feedback
     try {
       await api.approveIncident(incidentId);
     } catch (err) {
@@ -178,6 +208,8 @@ export function useSimulation() {
 
   /** Operator rejects an incident */
   const rejectIncident = useCallback(async (incidentId: string) => {
+    dismissedIds.current.add(incidentId);   // never re-surface this incident
+    setIncidents(prev => prev.filter(i => i.id !== incidentId)); // Immediate UI feedback
     try {
       await api.rejectIncident(incidentId);
     } catch (err) {

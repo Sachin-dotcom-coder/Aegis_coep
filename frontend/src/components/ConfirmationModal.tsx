@@ -12,15 +12,19 @@ interface Props {
 
 export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
   const [countdown, setCountdown] = useState(5);
+  const isSilent = incident.status === 'silent';
 
   useEffect(() => {
     if (countdown <= 0) {
-      onConfirm(incident.id);
+      // Silent incidents: auto-dismiss on expiry (don't deploy suppressed detections)
+      // All others: auto-deploy (operator had 5s to abort if needed)
+      if (isSilent) onReject(incident.id);
+      else onConfirm(incident.id);
       return;
     }
     const t = setTimeout(() => setCountdown(c => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [countdown, incident.id, onConfirm]);
+  }, [countdown, incident.id, onConfirm, onReject, isSilent]);
 
   return (
     <AnimatePresence>
@@ -37,14 +41,18 @@ export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
         >
           <div className="flex flex-col items-center gap-6 mb-8 text-center">
-            <div className="p-4 rounded-full bg-white/10 ring-8 ring-white/5 animate-pulse">
-              <ShieldAlert size={48} className="text-white" />
+            <div className={`p-4 rounded-full ring-8 animate-pulse ${isSilent ? 'bg-amber-500/10 ring-amber-500/10' : 'bg-white/10 ring-white/5'}`}>
+              <ShieldAlert size={48} className={isSilent ? 'text-amber-400' : 'text-white'} />
             </div>
             <div className="space-y-1">
               <h2 className="text-2xl font-black tracking-[0.2em] text-white uppercase font-sans">
-                Human Confirmation Required
+                {isSilent ? 'Low Confidence — Review' : 'Human Confirmation Required'}
               </h2>
-              <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">Action Pending: Strategic Deployment</p>
+              <p className="text-[10px] text-white/40 font-mono tracking-widest uppercase">
+                {isSilent
+                  ? 'Silent Log · Auto-dismiss in 5s unless deployed'
+                  : 'Action Pending: Strategic Deployment'}
+              </p>
             </div>
           </div>
 
@@ -54,9 +62,9 @@ export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-4 text-xs font-mono tracking-widest uppercase text-white/60">
               <div className="space-y-1"><span className="opacity-40">Source:</span> <div className="text-white">{incident.cameraSource}</div></div>
-              <div className="space-y-1"><span className="opacity-40">Confidence:</span> <div className="text-white">{(incident.detectionConfidence * 100).toFixed(0)}%</div></div>
+              <div className="space-y-1"><span className="opacity-40">Confidence:</span> <div className={isSilent ? 'text-amber-400 font-black' : 'text-white'}>{(incident.detectionConfidence * 100).toFixed(0)}%</div></div>
               <div className="space-y-1"><span className="opacity-40">Decision:</span> <div className="text-white">{(incident.decisionConfidence * 100).toFixed(0)}%</div></div>
-              <div className="space-y-1"><span className="opacity-40">Incidend ID:</span> <div className="text-white">#{incident.id.slice(0, 8)}</div></div>
+              <div className="space-y-1"><span className="opacity-40">Incident ID:</span> <div className="text-white">#{incident.id.slice(0, 8)}</div></div>
             </div>
             <div className="pt-2 text-center">
               <div className="text-[10px] font-bold text-white/40 mb-1 uppercase tracking-widest">Calculated Priority Score</div>
@@ -66,12 +74,12 @@ export function ConfirmationModal({ incident, onConfirm, onReject }: Props) {
 
           <div className="mb-8 p-4 bg-white/5 rounded-lg">
             <div className="flex justify-between text-xs font-mono text-white/60 mb-3 tracking-widest">
-              <span>AUTO-DEPLOYMENT SEQUENCE ACTIVE</span>
-              <span className="text-white font-bold">{countdown}S</span>
+              <span>{isSilent ? 'AUTO-DISMISS IN' : 'AUTO-DEPLOYMENT SEQUENCE ACTIVE'}</span>
+              <span className={`font-bold ${isSilent ? 'text-amber-400' : 'text-white'}`}>{countdown}S</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
               <motion.div
-                className="h-full bg-white rounded-full"
+                className={`h-full rounded-full ${isSilent ? 'bg-amber-400' : 'bg-white'}`}
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
                 transition={{ duration: 5, ease: 'linear' }}

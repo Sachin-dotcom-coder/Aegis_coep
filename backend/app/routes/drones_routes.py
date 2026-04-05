@@ -99,3 +99,20 @@ async def deploy_drone(drone_id: str, payload: DeployPayload):
         })
         
     return {"status": "deployed", "drone_id": drone_id, "incident_id": manual_inc_id}
+
+@router.post("/reset")
+async def reset_fleet():
+    """Wipe all active missions and reset drone positions."""
+    from app.main import fleet
+    from app.db.mongo import get_db
+    
+    # 1. Reset in-memory fleet state
+    fleet.reset_fleet()
+    
+    # 2. Clear incidents and audits from DB for a true clean slate
+    db = await get_db()
+    if db is not None:
+        await db.incidents.delete_many({"id": {"$regex": "^(INC-|SAFE-|SEED-|MANUAL-)"}})
+        await db.audit.delete_many({"reason": {"$regex": "System|Admin"}})
+        
+    return {"status": "success", "message": "Fleet and DB reset to clean state."}
