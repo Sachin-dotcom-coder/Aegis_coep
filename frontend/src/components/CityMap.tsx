@@ -41,31 +41,31 @@ interface Props {
 }
 
 const CCTV_NODES = [
-  { id: 'CAM-01', pos: [18.5308, 73.8475], label: 'Shivajinagar Sq' },
-  { id: 'CAM-02', pos: [18.5074, 73.8077], label: 'Kothrud Depo' },
-  { id: 'CAM-03', pos: [18.5089, 73.9260], label: 'Hadapsar Flyover' },
-  { id: 'CAM-04', pos: [18.5679, 73.9143], label: 'Viman Nagar' },
-  { id: 'CAM-05', pos: [18.5018, 73.8636], label: 'Swargate Hub' },
-  { id: 'CAM-06', pos: [18.6298, 73.7997], label: 'Pimpri Junction' },
-  { id: 'CAM-07', pos: [18.5913, 73.7401], label: 'Hinjewadi Ph1' },
-  { id: 'CAM-08', pos: [18.4575, 73.8677], label: 'Katraj Snake Park' },
-  { id: 'CAM-09', pos: [18.5204, 73.8567], label: 'Pune Station' },
-  { id: 'CAM-10', pos: [18.5513, 73.8224], label: 'Aundh IT Park' },
-  { id: 'CAM-11', pos: [18.5134, 73.8834], label: 'Camp MG Road' },
-  { id: 'CAM-12', pos: [18.4967, 73.8412], label: 'Parvati Hill' },
-  { id: 'CAM-13', pos: [18.5413, 73.8112], label: 'Pashan Lake' },
-  { id: 'CAM-14', pos: [18.5804, 73.9214], label: 'Kharadi IT Rd' },
-  { id: 'CAM-15', pos: [18.4688, 73.8322], label: 'Dhayari Phata' },
-  { id: 'CAM-16', pos: [18.6112, 73.8122], label: 'Chinchwad Stn' },
-  { id: 'CAM-17', pos: [18.5244, 73.8212], label: 'Loyola Rd' },
-  { id: 'CAM-18', pos: [18.5022, 73.8522], label: 'Sarasbaug' },
-  { id: 'CAM-19', pos: [18.5555, 73.9333], label: 'Magarpatta' },
-  { id: 'CAM-20', pos: [18.4833, 73.8944], label: 'Kondhwa Main' },
-  { id: 'CAM-21', pos: [18.4299, 73.8722], label: 'Saswad Bypass' },
-  { id: 'CAM-22', pos: [18.6444, 73.7633], label: 'Nigadi' },
-  { id: 'CAM-23', pos: [18.5722, 73.8011], label: 'Baner Balewadi' },
-  { id: 'CAM-24', pos: [18.5322, 73.8944], label: 'Yerwada' },
-  { id: 'CAM-25', pos: [18.5188, 73.9455], label: 'Manjari' },
+  { id: 'CAM-01', pos: [18.3800, 73.6600], label: 'Shivajinagar Sq' },
+  { id: 'CAM-02', pos: [18.6600, 74.0400], label: 'Kothrud Depo' },
+  { id: 'CAM-03', pos: [18.3800, 74.0400], label: 'Hadapsar Flyover' },
+  { id: 'CAM-04', pos: [18.6600, 73.6600], label: 'Viman Nagar' },
+  { id: 'CAM-05', pos: [18.5200, 73.8500], label: 'Swargate Hub' },
+  { id: 'CAM-06', pos: [18.4200, 73.7200], label: 'Pimpri Junction' },
+  { id: 'CAM-07', pos: [18.6000, 73.9800], label: 'Hinjewadi Ph1' },
+  { id: 'CAM-08', pos: [18.4500, 73.8000], label: 'Katraj Snake Park' },
+  { id: 'CAM-09', pos: [18.6300, 73.9200], label: 'Pune Station' },
+  { id: 'CAM-10', pos: [18.4800, 73.7500], label: 'Aundh IT Park' },
+  { id: 'CAM-11', pos: [18.5800, 74.0200], label: 'Camp MG Road' },
+  { id: 'CAM-12', pos: [18.4000, 73.9500], label: 'Parvati Hill' },
+  { id: 'CAM-13', pos: [18.6500, 73.7000], label: 'Pashan Lake' },
+  { id: 'CAM-14', pos: [18.5000, 74.0400], label: 'Kharadi IT Rd' },
+  { id: 'CAM-15', pos: [18.3800, 73.8800], label: 'Dhayari Phata' },
+  { id: 'CAM-16', pos: [18.6600, 73.8200], label: 'Chinchwad Stn' },
+  { id: 'CAM-17', pos: [18.4400, 73.6800], label: 'Loyola Rd' },
+  { id: 'CAM-18', pos: [18.6200, 74.0000], label: 'Sarasbaug' },
+  { id: 'CAM-19', pos: [18.5500, 73.6600], label: 'Magarpatta' },
+  { id: 'CAM-20', pos: [18.4800, 74.0400], label: 'Kondhwa Main' }, // updated
+  { id: 'CAM-21', pos: [18.6400, 73.7800], label: 'Saswad Bypass' }, // updated
+  { id: 'CAM-22', pos: [18.4000, 74.0400], label: 'Nigadi' }, // updated
+  { id: 'CAM-23', pos: [18.6600, 73.9500], label: 'Baner Balewadi' }, // updated
+  { id: 'CAM-24', pos: [18.3800, 74.0000], label: 'Yerwada' }, // updated
+  { id: 'CAM-25', pos: [18.6600, 73.7300], label: 'Manjari' } // updated
 ];
 
 export function CityMap({
@@ -352,7 +352,7 @@ export function CityMap({
             color: '#ffffff',
             weight: 2,
             dashArray: '12 12',
-            className: 'flowing-route', 
+            className: 'flowing-route',
             opacity: 0.7
           }
         ).addTo(map);
@@ -525,7 +525,7 @@ export function CityMap({
               {(() => {
                 const drone = drones.find(d => d.id === activeLiveFeed);
                 const incident = incidents.find(i => i.id === drone?.targetIncidentId);
-                
+
                 let s = "/video.mp4";
                 if (incident?.type === 'road_accident') {
                   // Stable selection based on incident ID to prevent flickering
