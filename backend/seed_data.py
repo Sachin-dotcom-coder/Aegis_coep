@@ -50,37 +50,37 @@ async def seed(random_count: int = 20):
 
     now = datetime.datetime.utcnow()
 
-    # ── 3 pinned showcase incidents (one per confidence tier) ─────────────────
+    # ── 3 specific showcase incidents (2 road accidents, 1 fire) ─────────────────
     pinned = [
         {
-            "id": "SAFE-AUTO-90",
+            "id": "SEED-ACCIDENT-1",
             "zone_id": "Z1", "type": "road_accident", "severity": 9,
-            "camera_id": "CAM-01", "camera_coverage": 400, "people_in_frame": 12,
+            "camera_id": "CAM-SHV-01", "camera_coverage": 400, "people_in_frame": 12,
             "lat": 18.5300, "lng": 73.8500,
-            "detect_confidence": 0.99, "timestamp": now,
-            "decision_confidence": 0.90, "priority_score": 9.9,
-            "status": "auto", "assigned_drone": None, "eta_seconds": None,
+            "detect_confidence": 0.88, "timestamp": now - datetime.timedelta(seconds=2),
+            "decision_confidence": 0.45, "priority_score": 8.5,
+            "status": "pending", "assigned_drone": None, "eta_seconds": None,
             "zone_accident_frequency": 0.8,
         },
         {
-            "id": "SAFE-POPUP-48",
-            "zone_id": "Z2", "type": "fire", "severity": 8,
-            "camera_id": "CAM-08", "camera_coverage": 300, "people_in_frame": 5,
-            "lat": 18.5500, "lng": 73.9300,
-            "detect_confidence": 0.48, "timestamp": now - datetime.timedelta(seconds=10),
-            "decision_confidence": 0.28, "priority_score": 4.2,
-            "status": "silent", "assigned_drone": None, "eta_seconds": None,
-            "zone_accident_frequency": 0.6,
-        },
-        {
-            "id": "SAFE-HUMAN-62",
-            "zone_id": "Z4", "type": "fallen_person", "severity": 7,
-            "camera_id": "CAM-15", "camera_coverage": 200, "people_in_frame": 20,
+            "id": "SEED-ACCIDENT-2",
+            "zone_id": "Z4", "type": "road_accident", "severity": 7,
+            "camera_id": "CAM-SWG-03", "camera_coverage": 300, "people_in_frame": 8,
             "lat": 18.4500, "lng": 73.8600,
-            "detect_confidence": 0.62, "timestamp": now - datetime.timedelta(seconds=20),
-            "decision_confidence": 0.55, "priority_score": 5.1,
+            "detect_confidence": 0.72, "timestamp": now - datetime.timedelta(seconds=5),
+            "decision_confidence": 0.40, "priority_score": 6.8,
             "status": "pending", "assigned_drone": None, "eta_seconds": None,
             "zone_accident_frequency": 0.9,
+        },
+        {
+            "id": "SEED-FIRE-1",
+            "zone_id": "Z2", "type": "fire", "severity": 10,
+            "camera_id": "CAM-VIM-05", "camera_coverage": 500, "people_in_frame": 3,
+            "lat": 18.5500, "lng": 73.9300,
+            "detect_confidence": 0.95, "timestamp": now - datetime.timedelta(seconds=8),
+            "decision_confidence": 0.48, "priority_score": 9.8,
+            "status": "pending", "assigned_drone": None, "eta_seconds": None,
+            "zone_accident_frequency": 0.6,
         },
     ]
 
