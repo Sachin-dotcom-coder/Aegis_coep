@@ -21,8 +21,7 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
   const active = incidents.filter(i => !['resolved', 'rejected', 'logged'].includes(i.status)).slice(0, 20);
 
   return (
-    <div className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${
-      expanded ? 'fixed inset-0 z-[20000] bg-black/95 backdrop-blur-3xl p-10' : 'h-full p-4 bg-black/40 backdrop-blur-xl'
+    <div className={`glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${expanded ? 'fixed inset-0 z-[20000] bg-black/95 backdrop-blur-3xl p-10' : 'h-full p-4 bg-black/40 backdrop-blur-xl'
       }`}>
       <div className="flex items-center gap-3 mb-6">
         <AlertTriangle size={expanded ? 24 : 13} className="text-white/60" />
@@ -46,8 +45,7 @@ export function AlertsPanel({ incidents, onSelect, onReject, selectedId }: Props
           return (
             <div
               key={inc.id}
-              className={`group relative rounded-xl cursor-pointer transition-all duration-300 border ${
-                expanded ? 'p-6 border-white/10 hover:bg-white/5 hover:border-white/30 hover:scale-[1.01] shadow-2xl' : 'p-3 border-transparent hover:bg-white/[0.08] hover:scale-[1.02]'
+              className={`group relative rounded-xl cursor-pointer transition-all duration-300 border ${expanded ? 'p-6 border-white/10 hover:bg-white/5 hover:border-white/30 hover:scale-[1.01] shadow-2xl' : 'p-3 border-transparent hover:bg-white/[0.08] hover:scale-[1.02]'
                 } ${selectedId === inc.id
                   ? 'bg-gradient-to-r from-white/10 to-transparent border-l-4 border-l-white border-y-white/10 border-r-white/10'
                   : inc.type === 'manual_deployment' ? 'bg-blue-500/10 border-blue-500/30' : 'bg-transparent'

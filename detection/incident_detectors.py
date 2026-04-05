@@ -320,15 +320,15 @@ class GunDetector:
     Optimized with YOLOv8s for speed/accuracy balance.
     """
     
-    WEAPON_CLASS_IDS = {43, 89}  # knife, gun
-    GUN_CONFIDENCE_THRESHOLD = 0.55  # Slightly lowered for v8s
+    WEAPON_CLASS_IDS = {0, 1, 2}  # match YOUR model's label map
+    GUN_CONFIDENCE_THRESHOLD = 0.61  # Raised to filter out false positives
     
     MUZZLE_FLASH_MIN_BRIGHTNESS = 200
-    MUZZLE_FLASH_MIN_PIXELS = 15
-    MUZZLE_FLASH_MAX_PIXELS = 800
-    BARREL_PROXIMITY = 60
+    MUZZLE_FLASH_MIN_PIXELS = 8      # was 15
+    MUZZLE_FLASH_MAX_PIXELS = 2000   # was 800
+    BARREL_PROXIMITY        = 120    # was 60
     
-    def __init__(self, confirm_frames: int = 2, model_path: str = "yolov8s.pt", debug: bool = False):
+    def __init__(self, confirm_frames: int = 2, model_path: str = "yolov8s-weapons.pt", debug: bool = False):
         """
         Initialize gun detector with optimized YOLOv8s.
         """
@@ -364,10 +364,10 @@ class GunDetector:
         Detect guns in frame and identify firing events.
         """
         # Optimized detection with appropriate image size
-        results = self._model.detect(
+        results = self._model.predict(
             frame, 
             imgsz=DETECTION_IMGSZ,
-            conf=0.30,  # Lower threshold for better recall
+            conf=self.GUN_CONFIDENCE_THRESHOLD,
             verbose=False
         )
         guns = self._extract_guns(results[0])
@@ -420,7 +420,7 @@ class GunDetector:
         else:
             self._validator.update(self._ZONE_ID, False)
         
-        confirmed = self._validator.query(self._ZONE_ID)
+        confirmed = self._validator.get_count(self._ZONE_ID) >= self._validator.required_frames
         if confirmed and len(firing_events) > 0:
             self._validator.reset(self._ZONE_ID)
         
@@ -492,7 +492,7 @@ class GunDetector:
                 continue
             
             compactness = area / (w * h + 1)
-            if compactness < 0.30:
+            if compactness < 0.15:  # was 0.30
                 continue
             
             cx = x + w // 2
@@ -636,10 +636,11 @@ class AccidentDetector:
                     "box": vehicle["box"],
                     "vehicles": [vehicle["label"]],
                     "score": 0.95,
-                    "reason": f"VEHICLE ROLLOVER/DETECTED - Aspect ratio: {rollover_info['aspect_ratio']:.2f}, Reason: {rollover_info['reason']}"
+                    "breakdown": {"dist": 0.0, "chaos": 1.0, "score": 0.95},
+                    "reason": f"Collision detected - vehicle rollover/rotation"
                 })
                 if self._debug:
-                    print(f"[ROLLOVER] Vehicle {vehicle['track_id']} rolled over!")
+                    print(f"[COLLISION] Vehicle {vehicle['track_id']} rolled over! | score=0.950 | chaos=1.00")
 
         # Traffic-light guard
         if len(vehicles) >= 3:
@@ -1084,3 +1085,95 @@ def _rmean(dq: deque, window: int = 0) -> float:
         return 0.0
     items = list(dq)[-window:] if window > 0 else list(dq)
     return float(np.mean(items)) if items else 0.0
+
+if __name__ == "__main__":
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("Usage: python -m detection.incident_detectors <video_path>")
+        sys.exit(1)
+        
+    video_path = sys.argv[1]
+    print(f"🎬 Processing video: {video_path}")
+    
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"❌ Error: Could not open video {video_path}")
+        sys.exit(1)
+        
+    print("🚀 Booting ALL Detectors (Accidents, Guns, Fire, Persons)...")
+    accident_detector = AccidentDetector(debug=True)
+    gun_detector = GunDetector(debug=True)
+    fire_detector = FireDetector()
+        
+    frame_idx = 0
+    print("Press 'q' in the video window to quit.")
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+            
+        frame_idx += 1
+        display_frame = frame.copy()
+        
+        # 1. ACCIDENT DETECTION (Detects Cars, Buses, Bikes, Accidents)
+        acc_conf, acc_events, vehicles = accident_detector.detect(frame, frame_idx)
+        for v in vehicles:
+            x1, y1, x2, y2 = map(int, v["box"])
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(display_frame, f"#{v['track_id']} {v['speed']:.2f}", (x1, max(0, y1 - 5)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        for e in acc_events:
+            if "box" in e:
+                x1, y1, x2, y2 = map(int, e["box"])
+                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                cv2.putText(display_frame, "ACCIDENT DETECTED!", (x1, max(0, y1 - 10)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+        # 2. GUN & PERSON DETECTION
+        # Person tracking using YOLO implicitly
+        results = gun_detector._model.predict(frame, imgsz=640, conf=0.4, verbose=False)
+        if results[0].boxes:
+            for box in results[0].boxes:
+                if int(box.cls[0]) == 0:  # 0 is Person class in COCO
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (255, 100, 0), 2)
+                    cv2.putText(display_frame, "Person", (x1, max(0, y1 - 5)), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 100, 0), 1)
+
+        # Gun tracking & muzzle flash
+        gun_conf, gun_events, guns = gun_detector.detect(frame)
+        for g in guns:
+            x1, y1, x2, y2 = g["x1"], g["y1"], g["x2"], g["y2"]
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(display_frame, f"WEAPON {g['conf']:.2f}", (x1, max(0, y1 - 5)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        for e in gun_events:
+            x1, y1, x2, y2 = map(int, e["gun_box"])
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 255), 4)
+            cv2.putText(display_frame, "SHOT FIRED!", (x1, max(0, y1 - 25)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 3)
+
+        # 3. FIRE DETECTION
+        fire_conf, fire_events = fire_detector.detect(frame)
+        for e in fire_events:
+            x1, y1, x2, y2 = map(int, e["box"])
+            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 165, 255), 3)
+            cv2.putText(display_frame, "FIRE DETECTED!", (x1, max(0, y1 - 10)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
+                
+        # Resize if video is too large for screen (keeps screen from flooding)
+        h, w = display_frame.shape[:2]
+        if w > 1280:
+            scale = 1280 / w
+            display_frame = cv2.resize(display_frame, (int(w * scale), int(h * scale)))
+            
+        cv2.imshow("Aegis Omni-Detector Evaluation", display_frame)
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+            
+    cap.release()
+    cv2.destroyAllWindows()
+    print("✅ Omni-Detector Video Evaluation Complete.")

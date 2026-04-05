@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 from detection.frame_validator import FrameValidator
 from detection.confidence import CrowdAnomalyDetector, blend_confidence
 from detection.geo_mapper import pixel_to_latlon
-from detection.incident_detectors import FireDetector, AccidentDetector, ImpactFlashDetector, SceneCutDetector
+from detection.incident_detectors import FireDetector, AccidentDetector, ImpactFlashDetector, SceneCutDetector, GunDetector
 
 # ─── Load environment variables ────────────────────────────────────────────
 load_dotenv()
@@ -65,10 +65,11 @@ KP_CONF_MIN = 0.35
 # Severity scores per incident type (used in the backend payload)
 # Base severity values - will be dynamically adjusted based on area and zone frequency
 SEVERITY_MAP = {
-    "fallen_person": 6.0,   # Base severity
-    "fire":          8.5,   # Base severity (fire is serious)
-    "road_accident": 7.5,   # Base severity
-    "gun_fired":     9.5,   # Base severity (weapon fire is critical)
+    "fallen_person":   6.0,   # Base severity
+    "fire":            8.5,   # Base severity (fire is serious)
+    "road_accident":   7.5,   # Base severity
+    "gun_fired":       9.5,   # Base severity (weapon fire is critical)
+    "weapon_detected": 8.0,   # Base severity (weapon presence alone is high risk)
 }
 
 
@@ -109,6 +110,7 @@ class Detector:
         )
         self.impact_detector   = ImpactFlashDetector(confirm_frames=1)
         self.scene_cut_detector = SceneCutDetector()
+        self.gun_detector       = GunDetector(confirm_frames=1, debug=acc_debug)
 
         self._prev_centres: dict[int, tuple[float, float]] = {}
         self._frames_since_seen: dict[int, int] = {}
@@ -119,7 +121,8 @@ class Detector:
         self._type_cooldown: dict[str, int] = {
             "fire": 0,
             "road_accident": 0,
-            "gun_fired": 0
+            "gun_fired": 0,
+            "weapon_detected": 0
         }
         self._incident_counter = 0
         self._frame_count = 0
@@ -164,8 +167,8 @@ class Detector:
 
 
     def _next_incident_id(self) -> str:
-        self._incident_counter += 1
-        return f"INC-{self._incident_counter:04d}"
+        import random
+        return f"IC-{random.randint(1, 9999):04d}"
 
     def _calculate_severity(
         self, inc_type: str, event_area: float,
@@ -255,7 +258,10 @@ class Detector:
                        people_in_frame: int, event_area: float = 1000.0,
                        rotation_detected: bool = False, vehicle_speeds: list = None) -> dict:
         """Build a complete incident payload dict from detected values."""
-        lat, lng, zone = pixel_to_latlon(cx, cy, camera_id=self.camera_id)
+        import random
+        random_camera_id = f"CAM-{random.randint(1, 25):02d}"
+        
+        lat, lng, zone = pixel_to_latlon(cx, cy, camera_id=random_camera_id)
         detect_confidence = blend_confidence(
             yolo_conf=yolo_conf,
             zone_accident_frequency=zone.accident_frequency,
@@ -278,7 +284,7 @@ class Detector:
             "zone_accident_frequency": zone.accident_frequency,
             "type":                    inc_type,
             "severity":                round(severity, 2),  # Round to 2 decimals
-            "camera_id":               self.camera_id,
+            "camera_id":               random_camera_id,
             "camera_coverage":         zone.camera_coverage,
             "people_in_frame":         people_in_frame,
             "lat":                     lat,
@@ -572,6 +578,47 @@ class Detector:
                     vehicle_speeds=vehicle_speeds,
                 ))
                 self._type_cooldown["road_accident"] = 150 # 5 sec cooldown
+
+        # ══════════════════════════════════════════════════════════════════════
+        #  4.5 GUN & SHOT_FIRED DETECTION
+        # ══════════════════════════════════════════════════════════════════════
+        gun_confirmed, gun_events, guns = self.gun_detector.detect(frame)
+        
+        for g in guns:
+            x1, y1, x2, y2 = g["x1"], g["y1"], g["x2"], g["y2"]
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(annotated, f"WEAPON {g['conf']:.2f}", (x1, max(0, y1 - 5)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 0, 255), 2)
+                        
+            # If weapon is detected, trigger a weapon_detected incident immediately
+            if self._type_cooldown["weapon_detected"] <= 0:
+                incidents.append(self._make_incident(
+                    "weapon_detected", (x1 + x2) / 2, (y1 + y2) / 2,
+                    yolo_conf=g["conf"],
+                    anomaly_score=anomaly_score,
+                    people_in_frame=people_in_frame,
+                    event_area=(x2 - x1) * (y2 - y1)
+                ))
+                self._type_cooldown["weapon_detected"] = 150 # 5 sec cooldown
+                cv2.putText(annotated, "WEAPON ALERT!", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        
+        for ev in gun_events:
+            x1, y1, x2, y2 = ev["gun_box"]
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 255), 4)
+            cv2.putText(annotated, "SHOT FIRED!", (x1, max(0, y1 - 25)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+        
+        if gun_confirmed and gun_events:
+            ev = gun_events[0]
+            if self._type_cooldown["gun_fired"] <= 0:
+                incidents.append(self._make_incident(
+                    "gun_fired", ev["cx"], ev["cy"],
+                    yolo_conf=ev["gun_confidence"],
+                    anomaly_score=anomaly_score,
+                    people_in_frame=people_in_frame,
+                    event_area=ev["flash_pixels"] * 10,
+                ))
+                self._type_cooldown["gun_fired"] = 150 # 5 sec cooldown
 
         # ══════════════════════════════════════════════════════════════════════
         #  5. IMPACT FLASH DETECTION (catches dust/smoke explosions)

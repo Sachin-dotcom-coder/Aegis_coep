@@ -49,14 +49,20 @@ ZONES = [
 DEFAULT_ZONE = Zone("Z1", 0, 0, 9999, 9999, 18.38, 73.66, 0.3, 30)
 
 # ---------------------------------------------------------------------------
-# Camera locations - Each camera has a fixed lat/lng
-# All incidents from the same camera will report this location
+# Camera locations - Generate 25 cameras for hackathon simulation
 # ---------------------------------------------------------------------------
+import random
+
+# Fixed seed so camera locations don't drift on server restarts
+rng = random.Random(42)  
+BASE_LAT = 12.9720
+BASE_LNG = 77.5945
+
 CAMERA_LOCATIONS = {
-    "CAM-01": (12.9720, 77.5945),  # Fixed camera position
-    "CAM-02": (12.9715, 77.5935),
-    "CAM-03": (12.9730, 77.5960),
-    "CAM-04": (12.9705, 77.5950),
+    f"CAM-{i:02d}": (
+        BASE_LAT + rng.uniform(-0.015, 0.015), 
+        BASE_LNG + rng.uniform(-0.015, 0.015)
+    ) for i in range(1, 26)
 }
 
 
