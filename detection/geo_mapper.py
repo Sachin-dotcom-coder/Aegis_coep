@@ -53,10 +53,10 @@ DEFAULT_ZONE = Zone("Z1", 0, 0, 9999, 9999, 18.38, 73.66, 0.3, 30)
 # All incidents from the same camera will report this location
 # ---------------------------------------------------------------------------
 CAMERA_LOCATIONS = {
-    "CAM-01": (18.5204, 73.8567),  # Central Pune (Shivajinagar)
-    "CAM-02": (18.5800, 73.7500),  # Baner/Balewadi
-    "CAM-03": (18.5600, 73.9100),  # Viman Nagar
-    "CAM-04": (18.4600, 73.8400),  # Katraj
+    "CAM-01": (12.9720, 77.5945),  # Fixed camera position
+    "CAM-02": (12.9715, 77.5935),
+    "CAM-03": (12.9730, 77.5960),
+    "CAM-04": (12.9705, 77.5950),
 }
 
 
