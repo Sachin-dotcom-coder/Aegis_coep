@@ -471,7 +471,7 @@ export function CityMap({
                 className="group flex items-center gap-3 bg-red-600/20 hover:bg-red-600 px-6 py-3 rounded-2xl border border-red-500/40 backdrop-blur-xl transition-all shadow-2xl"
               >
                 <ShieldAlert size={20} className="text-red-500 group-hover:text-white" />
-                <span className="text-xs font-black tracking-widest uppercase text-red-500 group-hover:text-white">Abort Mission</span>
+                <span className="text-xs font-black tracking-widest uppercase text-red-500 group-hover:text-white">Abort</span>
               </button>
 
               <button

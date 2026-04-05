@@ -264,11 +264,18 @@ class DroneFleet:
     def find_nearest_station(self, lat, lng):
         return min(self.stations, key=lambda s: (s[0]-lat)**2 + (s[1]-lng)**2)
 
-    def trigger_recall(self, drone):
+    def trigger_recall(self, drone, delete_task=False):
         target = self.find_nearest_station(drone.lat, drone.lng)
         old_inc = drone.recall(target)
-        if old_inc and old_inc not in self.pending_queue:
-            self.pending_queue.append(old_inc)
+        if old_inc and "id" in old_inc:
+            old_inc_id = old_inc["id"]
+            if delete_task:
+                if old_inc_id in self.active_mission_ids:
+                    self.active_mission_ids.remove(old_inc_id)
+                print(f"🛑 ABORT Mission: Incident {old_inc_id} removed from active fleet tracking.")
+            elif old_inc not in self.pending_queue:
+                self.pending_queue.append(old_inc)
+        return old_inc
 
     def has_enough_battery(self, drone, dest_lat, dest_lng):
         # Hard floor: never dispatch a critically low drone regardless of distance

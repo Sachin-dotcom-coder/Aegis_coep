@@ -33,24 +33,25 @@ async def recall_drone(drone_id: str):
         
     drone = fleet.drones[drone_id]
     
-    # Check if drone was actively assigned an incident to unassign physically in queue
-    old_inc = None
-    if drone.assigned_incident:
-        old_inc = drone.assigned_incident
-
-    fleet.trigger_recall(drone)
+    # Trigger recall and ensure task is deleted from fleet memory
+    old_inc_obj = fleet.trigger_recall(drone, delete_task=True)
+    old_inc_id = old_inc_obj.get("id") if old_inc_obj else None
     
     db = await get_db()
     if db is not None:
+        if old_inc_id:
+            # Physically delete the incident so NO other drone picks it up
+            await db.incidents.delete_one({"id": old_inc_id})
+            
         await db.audit.insert_one({
             "timestamp": datetime.datetime.utcnow(),
-            "action": "ADMIN_RECALL_DRONE",
+            "action": "ADMIN_ABORT_MISSION",
             "drone_id": drone_id,
-            "incident_id": old_inc if old_inc else "N/A",
-            "reason": "Admin forcibly recalled drone mid-flight."
+            "incident_id": old_inc_id if old_inc_id else "N/A",
+            "reason": "Admin aborted mission and terminated the task."
         })
         
-    return {"status": "recalled", "drone_id": drone_id}
+    return {"status": "aborted", "drone_id": drone_id, "incident_id": old_inc_id}
 
 @router.post("/{drone_id}/deploy")
 async def deploy_drone(drone_id: str, payload: DeployPayload):
